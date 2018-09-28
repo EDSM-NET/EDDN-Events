@@ -72,7 +72,6 @@ class Body
                         $insert = array(
                             'refSystem'     => $systemId,
                             'name'          => $message['BodyName'],
-                            'dateDiscovery' => $message['timestamp'],
                         );
                         
                         if(array_key_exists('BodyID', $message))
@@ -156,19 +155,6 @@ class Body
                     {
                         $currentBodyNewData['id64'] = $message['BodyID'];
                     }
-                }
-                
-                // Update date of discovery and user if before
-                if(array_key_exists('dateDiscovery', $currentBodyData) && !is_null($currentBodyData['dateDiscovery']))
-                {
-                    if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateDiscovery']))
-                    {
-                        $currentBodyNewData['dateDiscovery'] = $message['timestamp'];
-                    }
-                }
-                else
-                {
-                    $currentBodyNewData['dateDiscovery'] = $message['timestamp'];
                 }
                 
                 if(array_key_exists('Parents', $message))
