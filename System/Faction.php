@@ -14,6 +14,8 @@ use         Alias\Station\Engineer;
 
 class Faction
 {
+    private static $delayInfluenceCache = 43200;
+    
     static public function handle($systemId, $message)
     {
         $currentSystem  = \EDSM_System::getInstance($systemId);
@@ -21,39 +23,35 @@ class Faction
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {
             $factionsInfluencesDateUpdate   = $message['timestamp']; // Make sure all factions are updated at the same time
-            
-            $factionsModel                  = new \Models_Factions;
-            $factionsInfluencesModel        = new \Models_Factions_Influences;
-            
-            $oldFactions                    = $factionsInfluencesModel->getByRefSystem($currentSystem->getId());
             $newFactions                    = array();
             
             // Create a list of factions with their IDs
             if(array_key_exists('Factions', $message))
             {
+                $factionsModel = new \Models_Factions;
+                
                 foreach($message['Factions'] AS $faction)
                 {
                     $faction['Name']    = trim($faction['Name']);
                     $factionId          = null;
                     
+                    // We skip the engineers ;)
                     if(!empty($faction['Name']) && !in_array($faction['Name'], Engineer::getAll()))
                     {
-                        // Special continue case for Pilots Federation Local Branch
+                        // Special continue case for Pilots Federation Local Branch ;)
                         if($faction['Name'] == 'Pilots Federation Local Branch' && $faction['Influence'] == 0)
                         {
                             continue;
                         }
                         
                         $factionId          = $factionsModel->getByName($faction['Name']);
-                        $governmentAlias    = Government::getFromFd($faction['Government']);
-                        $allegianceAlias    = Allegiance::getFromFd($faction['Allegiance']);
                         
+                        // Try to insert the new faction
                         if(is_null($factionId))
                         {
                             try
                             {
-                                $insert     = array('name' => $faction['Name']);
-                                $factionId  = $factionsModel->insert($insert);
+                                $factionId  = $factionsModel->insert(['name' => $faction['Name']]);
                                 $factionId  = array('id' => $factionId);
                             }
                             catch(\Zend_Db_Exception $e)
@@ -70,20 +68,21 @@ class Faction
                         }
                     }
                     
+                    
+                    // Update allegiance and government if needed
                     if(!is_null($factionId) && array_key_exists('id', $factionId))
                     {
-                        $factionId = $factionId['id'];
+                        $factionId          = $factionId['id'];
+                        $factionUpdate      = array();
+                        
+                        $allegianceAlias    = Allegiance::getFromFd($faction['Allegiance']);
+                        $governmentAlias    = Government::getFromFd($faction['Government']);
                         
                         if(!is_null($allegianceAlias))
                         {
                             if(\EDSM_System_Station_Faction::getInstance($factionId)->getAllegiance() != $allegianceAlias)
                             {
-                                $factionsModel->updateById(
-                                    $factionId,
-                                    array('allegiance' => $allegianceAlias)
-                                );
-                                
-                                //\EDSM_Api_Logger::log('FACTION:     - Allegiance     : ' . Allegiance::get($allegianceAlias));
+                                $factionUpdate['allegiance'] = $allegianceAlias;
                             }
                         }
                         else
@@ -95,12 +94,7 @@ class Faction
                         {
                             if(\EDSM_System_Station_Faction::getInstance($factionId)->getGovernment() != $governmentAlias)
                             {
-                                $factionsModel->updateById(
-                                    $factionId,
-                                    array('government' => $governmentAlias)
-                                );
-                                
-                                //\EDSM_Api_Logger::log('FACTION:     - Government     : ' . Government::get($governmentAlias));
+                                $factionUpdate['government'] = $governmentAlias;
                             }
                         }
                         else
@@ -108,15 +102,26 @@ class Faction
                             \EDSM_Api_Logger_Alias::log('Alias\System\Government #' . $currentSystem->getId() . ':' . $faction['Government']);
                         }
                         
+                        $factionsModel->updateById($factionId, $factionUpdate);
+                        
                         $newFactions[$factionId] = $faction;
+                        
+                        unset($factionUpdate, $allegianceAlias, $governmentAlias);
                     }
                 }
+                
+                unset($factionsModel);
             }
+            
+            $factionsInfluencesModel        = new \Models_Factions_Influences;
+            $factionsHistoryModel           = new \Models_Factions_History;
+            
+            $oldFactions                    = $factionsInfluencesModel->getByRefSystem($currentSystem->getId());
             
             // Update old factions
             if(!is_null($oldFactions) && count($oldFactions) > 0)
             {
-                \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Faction:</span>            ' . $currentSystem->getName() . ' #' . $currentSystem->getId() . ' updated factions.');
+                \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Faction:</span>            ' . $currentSystem->getName() . ' #' . $currentSystem->getId() . ' updating factions.');
                 
                 $currentSystemStations = $currentSystem->getStations();
                 
@@ -125,57 +130,36 @@ class Faction
                     // Do not update if event timestamps are older than last update
                     if(strtotime($oldFaction['dateUpdated']) < strtotime($message['timestamp']))
                     {
-                        // Do not delete faction not present anymore, just state they have gone by putting influence to zero and keep the history
+                        // Do not delete faction not present anymore
+                        // Just state they have gone by putting influence to zero and keep the history in case they're coming back later
                         if(!array_key_exists($oldFaction['refFaction'], $newFactions))
                         {
-                            //$factionsInfluencesModel->deleteById($oldFaction['id']);
-                            
-                            $newFactions[$oldFaction['refFaction']] = array(
-                                'Influence'     => 0,
-                                'FactionState'  => 'none',
-                            );
+                            $newFactions[$oldFaction['refFaction']]                 = array();
+                            $newFactions[$oldFaction['refFaction']]['Influence']    = 0;
+                            $newFactions[$oldFaction['refFaction']]['FactionState'] = 'none';
                         }
                         
-                        // Update values
+                        // Update values and insert new history
                         if(array_key_exists($oldFaction['refFaction'], $newFactions))
                         {
-                            $updateArray = array();
+                            $updateArray    = array();
+                            $insertHistory  = array();
                             
                             // Faction influence
                             if(
-                                   $oldFaction['influence'] != $newFactions[$oldFaction['refFaction']]['Influence'] 
+                                   // Influences are different
+                                   $oldFaction['influence'] != $newFactions[$oldFaction['refFaction']]['Influence']
                                 && (
+                                    // Yet not the same as the last value stored, not game cache
                                        $newFactions[$oldFaction['refFaction']]['Influence'] != $oldFaction['oldInfluence']
-                                    || ($newFactions[$oldFaction['refFaction']]['Influence'] == $oldFaction['oldInfluence'] && (strtotime($factionsInfluencesDateUpdate) - 21600) >  strtotime($oldFaction['dateUpdated']))
+                                    // Or it's the same but interval between last value is enought to be considered not from the game cache
+                                    || ($newFactions[$oldFaction['refFaction']]['Influence'] == $oldFaction['oldInfluence'] && (strtotime($factionsInfluencesDateUpdate) - static::$delayInfluenceCache) >  strtotime($oldFaction['dateUpdated']))
                                 )
                             )
                             {
                                 $updateArray['influence']       = $newFactions[$oldFaction['refFaction']]['Influence'];
                                 $updateArray['oldInfluence']    = $oldFaction['influence'];
-                                    
-                                if(is_null($oldFaction['influenceHistory']))
-                                {
-                                    $updateArray['influenceHistory'] = array(strtotime($oldFaction['dateUpdated']) => $oldFaction['influence']);
-                                }
-                                else
-                                {
-                                    $updateArray['influenceHistory'] = \Zend_Json::decode($oldFaction['influenceHistory']);
-                                }
-                                
-                                $updateArray['influenceHistory'][strtotime($factionsInfluencesDateUpdate)] = $newFactions[$oldFaction['refFaction']]['Influence'];
-                                
-                                if(count($updateArray['influenceHistory']) > 1)
-                                {
-                                    // Clean if history have at least 180 updates and the first update is more than 6 month old.
-                                    reset($updateArray['influenceHistory']);
-                                    $firstDateUpdate = key($updateArray['influenceHistory']);
-                                    if(count($updateArray['influenceHistory']) > 180 &&  $firstDateUpdate < strtotime('6 MONTH AGO'))
-                                    {
-                                        unset($updateArray['influenceHistory'][$firstDateUpdate]);
-                                    }
-                                }
-                                
-                                $updateArray['influenceHistory'] = \Zend_Json::encode($updateArray['influenceHistory']);
+                                $insertHistory['influence']     = $oldFaction['influence'];
                                 
                                 // Check if an alert should be sent to a guild
                                 self::handleGuildsAlerts($currentSystem, $oldFaction['refFaction'], $updateArray['oldInfluence'], $updateArray['influence']);
@@ -190,38 +174,21 @@ class Faction
                                 {
                                     $updateArray['state']       = $stateAlias;
                                     $updateArray['oldState']    = $oldFaction['state'];
+                                    $insertHistory['state']     = $oldFaction['state'];
                                     
-                                    if(is_null($oldFaction['stateHistory']))
-                                    {
-                                        $updateArray['stateHistory'] = array(strtotime($oldFaction['dateUpdated']) => $oldFaction['state']);
-                                    }
-                                    else
-                                    {
-                                        $updateArray['stateHistory'] = \Zend_Json::decode($oldFaction['stateHistory']);
-                                    }
-                                
-                                    $updateArray['stateHistory'][strtotime($factionsInfluencesDateUpdate)] = $stateAlias;
-                                    
-                                    if(count($updateArray['stateHistory']) > 1)
-                                    {
-                                        // Clean if history have at least 180 updates and the first update is more than 6 month old.
-                                        reset($updateArray['stateHistory']);
-                                        $firstDateUpdate = key($updateArray['stateHistory']);
-                                        if(count($updateArray['stateHistory']) > 180 &&  $firstDateUpdate < strtotime('6 MONTH AGO'))
-                                        {
-                                            unset($updateArray['stateHistory'][$firstDateUpdate]);
-                                        }
-                                    }
-                                    
-                                    $updateArray['stateHistory'] = \Zend_Json::encode($updateArray['stateHistory']);
-                                    
+                                    //TODO: DELETE CAUSE NEW BGS?
                                     // Faction is in WAR/CIVIL WAR/ELECTION, update all other systems, stations controlled by the faction to NONE
                                     //         If war, both Factions are in war in systems where both factions exists
                                     // Faction is in BOOM/EXPANSION, update all other controlled systems and stations to the same state
                                     // yes, it was needed, because there may be the state "none" received from the system where is not the faction at war, although it still at war in another system.
                                     // So basically, when the other state than W/CW/E/None is received, I set it for all the systems, when "none" received, I am checking if there is no W/CW/E state pending in any system for that faction and then I am setting it as none for the faction.
                                     // It may be a little bit "slower" when there was a a war, etc. pending in multiple systems and there is low rate of data received from some of them, but it is unfortunately the only way how to do it, otherwise the W/CW/E state is reset too early for the faction
-                                    if($stateAlias == 12 /* WAR */ || $stateAlias == 1 /* BOOM */ | $stateAlias == 6 /* EXPANSION */)
+                                    /*
+                                    if(
+                                           $stateAlias == 12    // WAR
+                                        || $stateAlias == 1     // BOOM
+                                        || $stateAlias == 6     // EXPANSION
+                                    )
                                     {
                                         $currentFactionInfluences = $factionsInfluencesModel->getByRefFaction($oldFaction['refFaction']);
                                         
@@ -269,6 +236,7 @@ class Faction
                                             }
                                         }
                                     }
+                                    */
                                     
                                     // Check station controlling faction and also update state, so data is not stale
                                     if(!is_null($currentSystemStations) && count($currentSystemStations) > 0)
@@ -309,6 +277,53 @@ class Faction
                                 \EDSM_Api_Logger_Alias::log('Alias\System\State #' . $currentSystem->getId() . ':' . $newFactions[$oldFaction['refFaction']]['FactionState']);
                             }
                             
+                            // Faction Active States
+                            //TODO: Unlock Q4 ;)
+                            /*
+                            if(!array_key_exists('ActiveStates', $newFactions[$oldFaction['refFaction']]))
+                            {
+                                // If no active states, resets for current faction
+                                $newFactions[$oldFaction['refFaction']]['ActiveStates'] = null;
+                            }
+                            
+                            if(array_key_exists('ActiveStates', $newFactions[$oldFaction['refFaction']]))
+                            {
+                                $activeStates = $newFactions[$oldFaction['refFaction']]['ActiveStates'];
+                                
+                                // Convert active states to aliases
+                                if(!is_null($activeStates))
+                                {
+                                    $temp           = array();
+                                    
+                                    foreach($activeStates AS $activeState)
+                                    {
+                                        $stateAlias = State::getFromFd($activeState['State']);
+                                        
+                                        if(!is_null($stateAlias))
+                                        {
+                                            $temp[] = array(
+                                                'trend'     => $activeState['Trend'],
+                                                'state'     => $stateAlias,
+                                            );
+                                        }
+                                        else
+                                        {
+                                            \EDSM_Api_Logger_Alias::log('Alias\System\State #' . $currentSystem->getId() . ':' . $activeStates['State']);
+                                        }
+                                    }
+                                    
+                                    $activeStates = \Zend_Json::encode($temp);
+                                    unset($temp);
+                                }
+                                
+                                if(!array_key_exists('activeStates', $oldFaction) || $oldFaction['activeStates'] != $activeStates)
+                                {
+                                    $updateArray['activeStates']   = $activeStates;
+                                    $insertHistory['activeStates'] = $oldFaction['activeStates'];
+                                }
+                            }
+                            */
+                            
                             // Faction Pending States
                             if(!array_key_exists('PendingStates', $newFactions[$oldFaction['refFaction']]))
                             {
@@ -348,31 +363,8 @@ class Faction
                                 
                                 if(!array_key_exists('pendingStates', $oldFaction) || $oldFaction['pendingStates'] != $pendingStates)
                                 {
-                                    $updateArray['pendingStates'] = $pendingStates;
-                                    
-                                    if(!array_key_exists('pendingStatesHistory', $oldFaction) || is_null($oldFaction['pendingStatesHistory']))
-                                    {
-                                        $updateArray['pendingStatesHistory'] = array();
-                                    }
-                                    else
-                                    {
-                                        $updateArray['pendingStatesHistory'] = \Zend_Json::decode($oldFaction['pendingStatesHistory']);
-                                    }
-                                
-                                    $updateArray['pendingStatesHistory'][strtotime($factionsInfluencesDateUpdate)] = (!is_null($pendingStates)) ? \Zend_Json::decode($pendingStates) : null;
-                                    
-                                    if(count($updateArray['pendingStatesHistory']) > 1)
-                                    {
-                                        // Clean if history have at least 180 updates and the first update is more than 6 month old.
-                                        reset($updateArray['pendingStatesHistory']);
-                                        $firstDateUpdate = key($updateArray['pendingStatesHistory']);
-                                        if(count($updateArray['pendingStatesHistory']) > 180 &&  $firstDateUpdate < strtotime('6 MONTH AGO'))
-                                        {
-                                            unset($updateArray['pendingStatesHistory'][$firstDateUpdate]);
-                                        }
-                                    }
-                                    
-                                    $updateArray['pendingStatesHistory'] = \Zend_Json::encode($updateArray['pendingStatesHistory']);
+                                    $updateArray['pendingStates']   = $pendingStates;
+                                    $insertHistory['pendingStates'] = $oldFaction['pendingStates'];
                                 }
                             }
                             
@@ -415,35 +407,12 @@ class Faction
                                 
                                 if(!array_key_exists('recoveringStates', $oldFaction) || $oldFaction['recoveringStates'] != $recoveringStates)
                                 {
-                                    $updateArray['recoveringStates'] = $recoveringStates;
-                                    
-                                    if(!array_key_exists('recoveringStatesHistory', $oldFaction) || is_null($oldFaction['recoveringStatesHistory']))
-                                    {
-                                        $updateArray['recoveringStatesHistory'] = array();
-                                    }
-                                    else
-                                    {
-                                        $updateArray['recoveringStatesHistory'] = \Zend_Json::decode($oldFaction['recoveringStatesHistory']);
-                                    }
-                                
-                                    $updateArray['recoveringStatesHistory'][strtotime($factionsInfluencesDateUpdate)] = (!is_null($recoveringStates)) ? \Zend_Json::decode($recoveringStates) : null;
-                                    
-                                    if(count($updateArray['recoveringStatesHistory']) > 1)
-                                    {
-                                        // Clean if history have at least 180 updates and the first update is more than 6 month old.
-                                        reset($updateArray['recoveringStatesHistory']);
-                                        $firstDateUpdate = key($updateArray['recoveringStatesHistory']);
-                                        if(count($updateArray['recoveringStatesHistory']) > 180 &&  $firstDateUpdate < strtotime('6 MONTH AGO'))
-                                        {
-                                            unset($updateArray['recoveringStatesHistory'][$firstDateUpdate]);
-                                        }
-                                    }
-                                    
-                                    $updateArray['recoveringStatesHistory'] = \Zend_Json::encode($updateArray['recoveringStatesHistory']);
+                                    $updateArray['recoveringStates']    = $recoveringStates;
+                                    $insertHistory['recoveringStates']  = $oldFaction['recoveringStates'];
                                 }
                             }
                             
-                            if(count($updateArray) > 0 || (strtotime($factionsInfluencesDateUpdate) - 21600) >  strtotime($oldFaction['dateUpdated']))
+                            if(count($updateArray) > 0 || (strtotime($factionsInfluencesDateUpdate) - static::$delayInfluenceCache) >  strtotime($oldFaction['dateUpdated']))
                             {
                                 $updateArray['dateUpdated'] = $factionsInfluencesDateUpdate;
                             }
@@ -455,7 +424,35 @@ class Faction
                                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Faction:</span>                - Update ' . \EDSM_System_Station_Faction::getInstance($oldFaction['refFaction'])->getName() . ' #' . $oldFaction['refFaction']);
                             }
                             
-                            unset($newFactions[$oldFaction['refFaction']]);
+                            if(count($insertHistory) > 0)
+                            {
+                                // Always add the last influence when any state have been updated
+                                if(!array_key_exists('influence', $insertHistory))
+                                {
+                                    $insertHistory['influence']     = $oldFaction['influence'];
+                                }
+                                
+                                $insertHistory['refSystem']     = $currentSystem->getId();
+                                $insertHistory['refFaction']    = $oldFaction['refFaction'];
+                                $insertHistory['dateUpdated']   = $oldFaction['dateUpdated'];
+                                
+                                try
+                                {
+                                    $factionsHistoryModel->insert($insertHistory);
+                                }
+                                catch(\Zend_Db_Exception $e)
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+                                    
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
+                            
+                            unset($newFactions[$oldFaction['refFaction']], $updateArray, $insertHistory);
                         }
                     }
                     else
@@ -489,6 +486,8 @@ class Faction
                 
                 // Check if an alert should be sent to a guild
                 self::handleGuildsAlerts($currentSystem, $insert['refFaction'], null, $insert['influence']);
+                
+                unset($insert);
             }
             
             //\EDSM_Api_Logger::log('FACTION UPDATE STATES: OK ???');
