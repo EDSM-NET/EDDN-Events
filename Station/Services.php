@@ -26,6 +26,7 @@ class Services
             
             if(array_key_exists('StationServices', $message))
             {
+                $stationsModel              = new \Models_Stations;
                 $stationsServicesModel      = new \Models_Stations_Services;
                 
                 $newServices                = array();
@@ -73,6 +74,9 @@ class Services
                                 $stationsCommoditiesModel = new \Models_Stations_Commodities;
                                 $stationsCommoditiesModel->deleteByRefStation($currentStation->getId());
                                 
+                                $stationsModel->updateById($currentStation->getId(), ['marketUpdateTime' => new \Zend_Db_Expr('NULL')]);
+                                
+                                unset($stationsCommoditiesModel);
                             }
                             
                             // Delete ships from the old shipyard
@@ -81,6 +85,9 @@ class Services
                                 $stationsShipsModel = new \Models_Stations_Ships;
                                 $stationsShipsModel->deleteByRefStation($currentStation->getId());
                                 
+                                $stationsModel->updateById($currentStation->getId(), ['shipyardUpdateTime' => new \Zend_Db_Expr('NULL')]);
+                                
+                                unset($stationsShipsModel);
                             }
                             
                             // Delete outfittings from the old outfitting
@@ -89,6 +96,9 @@ class Services
                                 $stationsOutfittingsModel = new \Models_Stations_Outfittings;
                                 $stationsOutfittingsModel->deleteByRefStation($currentStation->getId());
                                 
+                                $stationsModel->updateById($currentStation->getId(), ['outfittingUpdateTime' => new \Zend_Db_Expr('NULL')]);
+                                
+                                unset($stationsOutfittingsModel);
                             }
                             
                             $updateLastUpdate = true;
@@ -116,9 +126,10 @@ class Services
                 
                 if($updateLastUpdate === true)
                 {
-                    $stationsModel              = new \Models_Stations;
-                    $stationsModel->updateById($currentStation->getId(), array('servicesUpdateTime' => $message['timestamp']));
+                    $stationsModel->updateById($currentStation->getId(), ['servicesUpdateTime' => $message['timestamp']]);
                 }
+                
+                unset($stationsModel, $stationsServicesModel);
             }
         }
     }

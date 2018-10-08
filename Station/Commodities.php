@@ -235,18 +235,27 @@ class Commodities
                             }
                         }
                         
-                        /*
-                        \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Commodities:</span>           - Prohibited: ' . implode(', ', array_map(function($commodityId) {
-                            return CommodityType::get($commodityId);
-                        }, $prohibited)));
-                        */
-                        
                         $stationsModel->updateById($currentStation->getId(), array('prohibited' => \Zend_Json::encode($prohibited), 'marketUpdateTime' => $message['timestamp']));
                     }
                     else
                     {
                         // Update update date into station
                         $stationsModel->updateById($currentStation->getId(), array('marketUpdateTime' => $message['timestamp']));
+                    }
+                    
+                    // Tweet new oldest station if it's the oldest!
+                    $cacheKey               = sha1('\Process\Elite\Market::$oldestStationId');
+                    $bootstrap              = \Zend_Registry::get('Zend_Application');
+                    $cacheManager           = $bootstrap->getResource('cachemanager');
+                    $cacheFile              = $cacheManager->getCache('databaseFile');
+                    
+                    $isOldestStation        = $cacheFile->load($cacheKey);
+                    
+                    if($isOldestStation !== false && $isOldestStation == $currentStation->getId())
+                    {
+                        \Process\Elite\Market::$sendTweet           = true;
+                        \Process\Elite\Market::$sendCompleteStats   = false;
+                        \Process\Elite\Market::run();
                     }
                     
                     // Tweet deleted commodities
