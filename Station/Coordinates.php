@@ -77,6 +77,7 @@ class Coordinates
         $stationName    = trim($stationName);
         if(substr($stationName, -3) === 'Stn'){ $stationName = trim(str_replace(' Stn', ' Station', $stationName)); }
         if($stationName == 'Nicollier Hanger'){ $stationName = 'Nicollier Hangar'; }
+        if($stationName == 'Henry O\'Hare\'s Hanger'){ $stationName = 'Henry O\'Hare\'s Hangar'; }
         
         if($currentSystem->isValid() && $currentSystem->isHidden() === false && !empty($stationName))
         {
