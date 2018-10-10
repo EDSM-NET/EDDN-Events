@@ -605,7 +605,7 @@ class Faction
                                 
                                 foreach($currentUsers AS $refUser)
                                 {
-                                    $currentUser = \EDSM_User::getInstance($refUser);
+                                    $currentUser = \Component\User::getInstance($refUser);
                                     
                                     if($currentUser->isValid())
                                     {
@@ -624,7 +624,7 @@ class Faction
                                 
                                 foreach($currentUsers AS $refUser)
                                 {
-                                    $currentUser = \EDSM_User::getInstance($refUser);
+                                    $currentUser = \Component\User::getInstance($refUser);
                                     
                                     if($currentUser->isValid())
                                     {
@@ -646,7 +646,7 @@ class Faction
                             
                             foreach($currentUsers AS $refUser)
                             {
-                                $currentUser = \EDSM_User::getInstance($refUser);
+                                $currentUser = \Component\User::getInstance($refUser);
                                 
                                 if($currentUser->isValid())
                                 {

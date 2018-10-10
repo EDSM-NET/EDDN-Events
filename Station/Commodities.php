@@ -183,7 +183,7 @@ class Commodities
                         
                         foreach($alerts AS $alert)
                         {
-                            $user = \EDSM_User::getInstance($alert['refUser']);
+                            $user = \Component\User::getInstance($alert['refUser']);
                             
                             if($user->isValid())
                             {
