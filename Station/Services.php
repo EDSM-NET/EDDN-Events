@@ -85,7 +85,8 @@ class Services
 
                                 if($isOldestStation !== false && $isOldestStation == $currentStation->getId())
                                 {
-                                    \Process\Elite\Market::$sendTweet           = true;
+                                    // Just update the ID in cache
+                                    \Process\Elite\Market::$sendTweet           = false;
                                     \Process\Elite\Market::$sendCompleteStats   = false;
                                     \Process\Elite\Market::run();
                                 }

@@ -17,9 +17,9 @@ class Information
     static public function handle($systemId, $message)
     {
         $message        = self::_convertJournalMessage($message);
-        
+
         $currentSystem  = \EDSM_System::getInstance($systemId);
-        
+
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {
             // Update ID64
@@ -28,7 +28,7 @@ class Information
                 if(is_null($currentSystem->getId64()))
                 {
                     $id64 = null;
-                    
+
                     if(array_key_exists('SystemAddress', $message))
                     {
                         $id64 = $message['SystemAddress'];
@@ -37,11 +37,11 @@ class Information
                     {
                         $id64 = $currentSystem->getId64FromEDTS();
                     }
-                    
+
                     if(!is_null($id64))
                     {
                         \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>        Updated ID64 : ' . $id64);
-                        
+
                         $systemsModel = new \Models_Systems;
                         $systemsModel->updateById(
                             $currentSystem->getId(),
@@ -55,19 +55,19 @@ class Information
             }
             catch(\Zend_Exception $e)
             {
-                
+
             }
-            
+
             $currentInformation = $currentSystem->getInformations();
             $newInformation     = array();
-            
+
             // Check if message is newer than the last stored done
             if(!is_null($currentInformation) && strtotime($currentInformation['dateUpdated']) > strtotime($message['timestamp']))
             {
                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>        <span class="text-danger">' . $currentSystem->getName() . ' (#' . $currentSystem->getId() . ') information too old (' . $message['timestamp'] . ').</span>');
                 return;
             }
-            
+
             if(array_key_exists('SystemAllegiance', $message) && !empty(trim($message['SystemAllegiance'])))
             {
                 // Population
@@ -75,11 +75,11 @@ class Information
                 {
                     $newInformation['population'] = $message['Population'];
                 }
-                
+
                 // Allegiance
                 $allegiance         = trim($message['SystemAllegiance']);
                 $allegianceAlias    = Allegiance::getFromFd($allegiance);
-                
+
                 if(!empty($allegiance) && !is_null($allegianceAlias))
                 {
                     if(is_null($currentInformation) || $currentInformation['allegiance'] != $allegianceAlias)
@@ -95,11 +95,11 @@ class Information
                 {
                     $newInformation['allegiance'] = 0;
                 }
-                
+
                 // Government
                 $government         = trim($message['SystemGovernment']);
                 $governmentAlias    = Government::getFromFd($government);
-                
+
                 if(!empty($government))
                 {
                     if(!is_null($governmentAlias))
@@ -114,17 +114,17 @@ class Information
                         \EDSM_Api_Logger_Alias::log('Alias\System\Government #' . $currentSystem->getId() . ':' . $government);
                     }
                 }
-                
+
                 // Faction
                 if(array_key_exists('SystemFaction', $message))
                 {
                     $factionsModel  = new \Models_Factions;
                     $factionName    = trim($message['SystemFaction']);
-                    
+
                     if(!empty($factionName))
                     {
                         $factionId      = $factionsModel->getByName($factionName);
-                        
+
                         if(is_null($factionId))
                         {
                             $factionId = $factionsModel->insert(array('name' => $factionName));
@@ -133,73 +133,23 @@ class Information
                         {
                             $factionId = $factionId['id'];
                         }
-                        
+
                         if(!is_null($factionId) && (is_null($currentInformation) || $currentInformation['refFaction'] != $factionId))
                         {
                             $newInformation['refFaction'] = $factionId;
-                            
-                            if(!is_null($currentInformation['refFaction']))
-                            {
-                                // Tweet new system controlling faction
-                                try
-                                {
-                                    \EDSM_Api_Tweet::status(
-                                          '"' . $currentSystem->getName() . '"'
-                                        . ' system is now controlled by "' . \EDSM_System_Station_Faction::getInstance($factionId)->getName() . '"'
-                                        . ' #EliteDangerous'
-                                        . ' https://www.edsm.net/en/system/id/' . $currentSystem->getId() . '/name/' . urlencode($currentSystem->getName()),
-                                        true
-                                    );
-                                }
-                                catch(\Zend_Exception $e)
-                                {
-                                    $registry = \Zend_Registry::getInstance();
-                                    
-                                    if($registry->offsetExists('sentryClient'))
-                                    {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
-                                    }
-                                }
-                            }
                         }
-                        
+
                         // Faction State
                         if(array_key_exists('FactionState', $message))
                         {
                             $state      = trim($message['FactionState']);
                             $stateAlias = State::getFromFd($state);
-                            
+
                             if(!empty($state) && !is_null($stateAlias))
                             {
                                 if(is_null($currentInformation) || $currentInformation['factionState'] != $stateAlias)
                                 {
                                     $newInformation['factionState'] = $stateAlias;
-                                    
-                                    if(!is_null($currentInformation['factionState']) && $stateAlias > 0)
-                                    {
-                                        // Tweet new system state
-                                        try
-                                        {
-                                            \EDSM_Api_Tweet::status(
-                                                  '"' . $currentSystem->getName() . '"'
-                                                . ' system is now in "' . State::get($stateAlias) . '" state'
-                                                //. ' #EliteDangerous'
-                                                . ' https://www.edsm.net/en/system/id/' . $currentSystem->getId() . '/name/' . urlencode($currentSystem->getName()),
-                                                true
-                                            );
-                                        }
-                                        catch(\Zend_Exception $e)
-                                        {
-                                            $registry = \Zend_Registry::getInstance();
-                                            
-                                            if($registry->offsetExists('sentryClient'))
-                                            {
-                                                $sentryClient = $registry->offsetGet('sentryClient');
-                                                $sentryClient->captureException($e);
-                                            }
-                                        }
-                                    }
                                 }
                             }
                             elseif(!empty($state) && is_null($stateAlias))
@@ -217,11 +167,11 @@ class Information
                         }
                     }
                 }
-                
+
                 // Security
                 $security       = trim($message['SystemSecurity']);
                 $securityAlias  = Security::getFromFd($security);
-                
+
                 if(!empty($security) && !is_null($securityAlias))
                 {
                     if(is_null($currentInformation) || $currentInformation['security'] != $securityAlias)
@@ -237,11 +187,11 @@ class Information
                 {
                     $newInformation['security'] = 0;
                 }
-                
+
                 // Economy
                 $economy        = trim($message['SystemEconomy']);
                 $economyAlias   = Economy::getFromFd($economy);
-                
+
                 if(!empty($economy) && !is_null($economyAlias))
                 {
                     if(is_null($currentInformation) || $currentInformation['economy'] != $economyAlias)
@@ -257,13 +207,13 @@ class Information
                 {
                     $newInformation['economy'] = 0;
                 }
-                
+
                 // Second Economy
                 if(array_key_exists('SystemSecondEconomy', $message))
                 {
                     $economy        = trim($message['SystemSecondEconomy']);
                     $economyAlias   = Economy::getFromFd($economy);
-                    
+
                     if(!empty($economy) && !is_null($economyAlias))
                     {
                         if(is_null($currentInformation) || !array_key_exists('secondEconomy', $currentInformation) || $currentInformation['secondEconomy'] != $economyAlias)
@@ -280,13 +230,13 @@ class Information
                         $newInformation['secondEconomy'] = 0;
                     }
                 }
-                
+
                 // Update system informations
                 if(count($newInformation) > 0)
                 {
                     $systemsInformationsModel       = new \Models_Systems_Informations;
                     $newInformation['dateUpdated']  = $message['timestamp'];
-                    
+
                     if(!is_null($currentInformation))
                     {
                         $systemsInformationsModel->updateByRefSystem($currentSystem->getId(), $newInformation);
@@ -296,9 +246,9 @@ class Information
                         $newInformation['refSystem'] = $currentSystem->getId();
                         $systemsInformationsModel->insert($newInformation);
                     }
-                    
+
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>        ' . $currentSystem->getName() . ' (#' . $currentSystem->getId() . ') updated information.');
-                    
+
                     if(array_key_exists('allegiance', $newInformation))
                     {
                         \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>            - Allegiance     : ' . Allegiance::get($newInformation['allegiance']));
@@ -327,7 +277,7 @@ class Information
             }
         }
     }
-    
+
     static private function _convertJournalMessage($message)
     {
         if(array_key_exists('Allegiance', $message))
@@ -335,31 +285,31 @@ class Information
             $message['SystemAllegiance'] = $message['Allegiance'];
             unset($message['Allegiance']);
         }
-        
+
         if(array_key_exists('Government', $message))
         {
             $message['SystemGovernment'] = $message['Government'];
             unset($message['Government']);
         }
-        
+
         if(array_key_exists('Faction', $message))
         {
             $message['SystemFaction'] = $message['Faction'];
             unset($message['Faction']);
         }
-        
+
         if(array_key_exists('Security', $message))
         {
             $message['SystemSecurity'] = $message['Security'];
             unset($message['Security']);
         }
-        
+
         if(array_key_exists('Economy', $message))
         {
             $message['SystemEconomy'] = $message['Economy'];
             unset($message['Economy']);
         }
-        
+
         return $message;
     }
 }

@@ -22,46 +22,46 @@ class Information
     {
         $currentSystem  = \EDSM_System::getInstance($systemId);
         $currentStation = \EDSM_System_Station::getInstance($stationId);
-        
+
         if($currentSystem->isValid() && $currentSystem->isHidden() === false && $currentStation->isValid() && $currentSystem->getId() == $currentStation->getSystem()->getId())
         {
             $stationLastUpdate = $currentStation->getUpdateTime();
-            
+
             if(!is_null($stationLastUpdate) && strtotime($message['timestamp']) < strtotime($stationLastUpdate))
             {
                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>       <span class="text-danger">' . $currentStation->getName() . ' (#' . $currentStation->getId() . ') information too old (' . $message['timestamp'] . ').</span>');
                 return;
             }
-            
+
             $newInformation     = array();
-            
+
             // Type
             if(array_key_exists('StationType', $message))
             {
                 $type       = trim($message['StationType']);
-                
+
                 if(!empty($type))
                 {
                     $typeAlias  = StationType::getFromFd($type);
-                    
+
                     if(!is_null($typeAlias))
                     {
                         // Planetary outpost, check againt forced planetary port
                         if($typeAlias == 5)
                         {
                             $marketId = $currentStation->getMarketId();
-                            
+
                             if(!is_null($marketId))
                             {
                                 $planetatyPort = include LIBRARY_PATH . '/Alias/Station/planetaryPort.php';
-                                
+
                                 if(in_array($marketId, $planetatyPort))
                                 {
                                     $typeAlias = 6;
                                 }
                             }
                         }
-                        
+
                         if($currentStation->getType() != $typeAlias)
                         {
                             $newInformation['type'] = $typeAlias;
@@ -73,16 +73,16 @@ class Information
                     }
                 }
             }
-            
+
             // State
             if(array_key_exists('StationState', $message))
             {
                 $state       = trim($message['StationState']);
-                
+
                 if(!empty($state))
                 {
                     $stateAlias  = StationState::getFromFd($state);
-                    
+
                     if(!is_null($stateAlias))
                     {
                         if($currentStation->getState() != $stateAlias)
@@ -100,12 +100,12 @@ class Information
             {
                 $newInformation['state'] = new \Zend_Db_Expr('NULL');
             }
-            
+
             if(array_key_exists('DistFromStarLS', $message) && $message['DistFromStarLS'] != $currentStation->getDistanceToArrival())
             {
                 $newInformation['distanceToArrival'] = $message['DistFromStarLS'];
             }
-            
+
             // Station body
             if(array_key_exists('BodyName', $message)) // EDMC < 2.4
             {
@@ -117,7 +117,7 @@ class Information
                 // Find message body id, from the list of current system
                 $currentSystemBodies    = $currentSystem->getBodies();
                 $newBodyId              = null;
-                
+
                 foreach($currentSystemBodies AS $currentBody)
                 {
                     if($currentBody['name'] == trim($message['Body']))
@@ -125,11 +125,11 @@ class Information
                         $newBodyId = $currentBody['id'];
                     }
                 }
-                
+
                 if(!is_null($newBodyId))
                 {
                     $currentBody = $currentStation->getBody();
-                    
+
                     if(!is_null($currentBody))
                     {
                         if($currentBody->getId() != $newBodyId)
@@ -143,13 +143,13 @@ class Information
                     }
                 }
             }
-            
+
             // Allegiance
             if(array_key_exists('StationAllegiance', $message))
             {
                 $allegiance         = trim($message['StationAllegiance']);
                 $allegianceAlias    = Allegiance::getFromFd($allegiance);
-                
+
                 if(!empty($allegiance) && !is_null($allegianceAlias))
                 {
                     if($currentStation->getAllegiance() != $allegianceAlias)
@@ -171,14 +171,14 @@ class Information
             {
                 $newInformation['allegiance'] = 4;
             }
-                
-            
+
+
             // Government
             if(array_key_exists('StationGovernment', $message))
             {
                 $government         = trim($message['StationGovernment']);
                 $governmentAlias    = Government::getFromFd($government);
-                
+
                 if(!is_null($governmentAlias))
                 {
                     if($currentStation->getGovernment() != $governmentAlias)
@@ -191,14 +191,14 @@ class Information
                     \EDSM_Api_Logger_Alias::log('Alias\System\Government #' . $currentStation->getId() . ':' . $government);
                 }
             }
-            
+
             // Faction
             if(array_key_exists('StationFaction', $message) && !in_array($currentStation->getId(), EngineerStation::getAll()))
             {
                 $factionsModel  = new \Models_Factions;
                 $factionName    = trim($message['StationFaction']);
                 $factionId      = $factionsModel->getByName($factionName);
-                
+
                 if(is_null($factionId))
                 {
                     $factionId = $factionsModel->insert(array('name' => $factionName));
@@ -207,62 +207,24 @@ class Information
                 {
                     $factionId = $factionId['id'];
                 }
-                
+
                 if(!is_null($factionId) && (is_null($currentStation->getFaction()) || $currentStation->getFaction()->getId() != $factionId))
                 {
                     $newInformation['refFaction'] = $factionId;
-                    
-                    if(!is_null($currentStation->getFaction()))
-                    {
-                        // Tweet new station controlling faction
-                        try
-                        {
-                            \EDSM_Api_Tweet::status(
-                                  '"' . $currentSystem->getName() . ' / ' . $currentStation->getName() . '"'
-                                . ' station is now controlled by "' . \EDSM_System_Station_Faction::getInstance($factionId)->getName() . '"'
-                                . ' #EliteDangerous'
-                                . ' https://www.edsm.net/en/system/stations/id/' . $currentSystem->getId() . '/name/' . urlencode($currentSystem->getName()) . '/details/idS/' . $currentStation->getId() . '/nameS/' . urlencode($currentStation->getName()),
-                                true
-                            );
-                        }
-                        catch(\Zend_Exception $e)
-                        {
-                            \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - ' . $e->getMessage());
-                        }
-                    }
                 }
             }
-            
+
             // Faction State
             if(array_key_exists('FactionState', $message) && !in_array($currentStation->getId(), EngineerStation::getAll()))
             {
                 $state      = trim($message['FactionState']);
                 $stateAlias = State::getFromFd($state);
-                
+
                 if(!empty($state) && !is_null($stateAlias))
                 {
                     if($currentStation->getFactionState() != $stateAlias)
                     {
                         $newInformation['factionState'] = $stateAlias;
-                        
-                        if(!is_null($currentStation->getFactionState()) && $stateAlias > 0)
-                        {
-                            // Tweet new station state
-                            try
-                            {
-                                \EDSM_Api_Tweet::status(
-                                      '"' . $currentSystem->getName() . ' / ' . $currentStation->getName() . '"'
-                                    . ' station is now in "' . State::get($stateAlias) . '" state'
-                                    //. ' #EliteDangerous'
-                                    . ' https://www.edsm.net/en/system/stations/id/' . $currentSystem->getId() . '/name/' . urlencode($currentSystem->getName()) . '/details/idS/' . $currentStation->getId() . '/nameS/' . urlencode($currentStation->getName()),
-                                    true
-                                );
-                            }
-                            catch(\Zend_Exception $e)
-                            {
-                                \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - ' . $e->getMessage());
-                            }
-                        }
                     }
                 }
                 elseif(!empty($state) && !is_null($stateAlias))
@@ -277,13 +239,13 @@ class Information
             elseif(!is_null($currentStation->getFactionState()) && $currentStation->getFactionState() != 0)
             {
                 $newInformation['factionState'] = 0;
-            } 
-            
+            }
+
             // Economy
             if(array_key_exists('StationEconomies', $message))
             {
                 //TODO: Order by proportion?
-                
+
                 foreach($message['StationEconomies'] AS $key => $economy)
                 {
                     if($key == 0)
@@ -296,12 +258,12 @@ class Information
                     }
                 }
             }
-            
+
             if(array_key_exists('StationEconomy', $message))
             {
                 $economy        = trim($message['StationEconomy']);
                 $economyAlias   = Economy::getFromFd($economy);
-                
+
                 if(!empty($economy) && !is_null($economyAlias))
                 {
                     if($currentStation->getEconomy() != $economyAlias)
@@ -318,12 +280,12 @@ class Information
                     $newInformation['economy'] = 0;
                 }
             }
-            
+
             if(array_key_exists('StationSecondEconomy', $message))
             {
                 $economy        = trim($message['StationSecondEconomy']);
                 $economyAlias   = Economy::getFromFd($economy);
-                
+
                 if(!empty($economy) && !is_null($economyAlias))
                 {
                     if($currentStation->getEconomy() != $economyAlias)
@@ -340,15 +302,15 @@ class Information
                     $newInformation['secondEconomy'] = 0;
                 }
             }
-            
+
             if(count($newInformation) > 0)
             {
                 $stationsModel                  = new \Models_Stations;
                 $newInformation['updateTime']   = $message['timestamp'];
                 $stationsModel->updateById($currentStation->getId(), $newInformation);
-                
+
                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>       ' . $currentStation->getName() . ' (#' . $currentStation->getId() . ') updated information.');
-                
+
                 if(array_key_exists('type', $newInformation))
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Type           : ' . StationType::get($newInformation['type']));
@@ -365,7 +327,7 @@ class Information
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Parent body    : #' . $newInformation['refBody']);
                 }
-                
+
                 if(array_key_exists('allegiance', $newInformation))
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Allegiance     : ' . Allegiance::get($newInformation['allegiance']));
@@ -374,7 +336,7 @@ class Information
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Government     : ' . Government::get($newInformation['government']));
                 }
-                
+
                 if(array_key_exists('refFaction', $newInformation))
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Faction        : ' . \EDSM_System_Station_Faction::getInstance($newInformation['refFaction'])->getName() . ' #' . $newInformation['refFaction']);
@@ -383,7 +345,7 @@ class Information
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Faction State  : ' . State::get($newInformation['factionState']));
                 }
-                
+
                 if(array_key_exists('economy', $newInformation))
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Economy        : ' . Economy::get($newInformation['economy']));
