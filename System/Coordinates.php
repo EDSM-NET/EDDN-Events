@@ -142,7 +142,7 @@ class Coordinates
 
         if(!is_null($currentSystem))
         {
-            if(!$currentSystem instanceof \EDSM_System)
+            if(!$currentSystem instanceof \Component\System)
             {
                 $currentSystem = \Component\System::getInstance($currentSystem['id']);
             }

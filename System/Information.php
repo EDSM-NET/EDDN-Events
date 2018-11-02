@@ -58,7 +58,7 @@ class Information
 
             }
 
-            $currentInformation = $currentSystem->getInformations();
+            $currentInformation = $currentSystem->getInformation();
             $newInformation     = array();
 
             // Check if message is newer than the last stored done
