@@ -18,7 +18,7 @@ class Faction
 
     static public function handle($systemId, $message)
     {
-        $currentSystem  = \EDSM_System::getInstance($systemId);
+        $currentSystem  = \Component\System::getInstance($systemId);
 
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {

@@ -18,7 +18,7 @@ class Information
     {
         $message        = self::_convertJournalMessage($message);
 
-        $currentSystem  = \EDSM_System::getInstance($systemId);
+        $currentSystem  = \Component\System::getInstance($systemId);
 
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {

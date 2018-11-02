@@ -12,8 +12,8 @@ class PowerPlay
 {
     static public function handle($systemId, $message)
     {
-        $currentSystem  = \EDSM_System::getInstance($systemId);
-        
+        $currentSystem  = \Component\System::getInstance($systemId);
+
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {
             if(array_key_exists('Powers', $message) && array_key_exists('PowerplayState', $message))
@@ -21,7 +21,7 @@ class PowerPlay
                 $systemsPowerplayModel  = new \Models_Systems_Powerplay;
                 $currentPowerplay       = $systemsPowerplayModel->getByRefSystem($systemId);
                 $updatePowerplay        = true;
-                
+
                 if(!is_null($currentPowerplay))
                 {
                     foreach($currentPowerplay AS $powerplay)
@@ -32,17 +32,17 @@ class PowerPlay
                         }
                     }
                 }
-                
+
                 if($updatePowerplay === true)
                 {
                     $systemsPowerplayModel->deleteByRefSystem($systemId);
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\PowerPlay:</span>          Refreshing PowerPlay...');
-                    
+
                     foreach($message['Powers'] AS $power)
                     {
                         // Check if power is known in EDSM
                         $powerId        = \Alias\System\Power::getFromFd($power);
-                        
+
                         if(!is_null($powerId))
                         {
                             try
@@ -53,7 +53,7 @@ class PowerPlay
                                     'state'         => $message['PowerplayState'],
                                     'dateUpdated'   => $message['timestamp'],
                                 ));
-                                
+
                                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\PowerPlay:</span>              - ' . $currentSystem->getName() . ' / ' . $power . ' / ' . $message['PowerplayState']);
                             }
                             catch(\Zend_Db_Exception $e)

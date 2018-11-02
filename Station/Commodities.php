@@ -12,7 +12,7 @@ class Commodities
 {
     static public function handle($systemId, $stationId, $message)
     {
-        $currentSystem  = \EDSM_System::getInstance($systemId);
+        $currentSystem  = \Component\System::getInstance($systemId);
         $currentStation = \EDSM_System_Station::getInstance($stationId);
 
         if($currentSystem->isValid() && $currentSystem->isHidden() === false && $currentStation->isValid() && $currentSystem->getId() == $currentStation->getSystem()->getId())
