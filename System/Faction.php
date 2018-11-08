@@ -9,12 +9,13 @@ namespace   EDDN\System;
 use         Alias\System\Allegiance;
 use         Alias\System\Government;
 use         Alias\System\State;
+use         Alias\System\Happiness;
 
 use         Alias\Station\Engineer;
 
 class Faction
 {
-    private static $delayInfluenceCache = 43200;
+    private static $delayInfluenceCache = 43200; // 21600
 
     static public function handle($systemId, $message)
     {
@@ -215,6 +216,37 @@ class Faction
                                 \EDSM_Api_Logger_Alias::log('Alias\System\State #' . $currentSystem->getId() . ':' . $newFactions[$oldFaction['refFaction']]['FactionState']);
                             }
 
+                            // Faction Happiness
+                            if(array_key_exists('Happiness', $newFactions[$oldFaction['refFaction']]))
+                            {
+                                if(empty($newFactions[$oldFaction['refFaction']]['Happiness']))
+                                {
+                                    $happinessAlias = 0; // None
+                                }
+                                else
+                                {
+                                    $happinessAlias = Happiness::getFromFd($newFactions[$oldFaction['refFaction']]['Happiness']);
+                                }
+
+                                if(!is_null($happinessAlias))
+                                {
+                                    // Default value
+                                    if(!array_key_exists('happiness', $oldFaction)) { $oldFaction['happiness'] = 0; }
+
+                                    if($oldFaction['happiness'] != $happinessAlias)
+                                    {
+                                        $updateArray['happiness']       = $happinessAlias;
+                                        $updateArray['oldHappiness']    = $oldFaction['happiness'];
+                                        $insertHistory['happiness']     = $oldFaction['happiness'];
+                                    }
+                                }
+                                else
+                                {
+                                    \EDSM_Api_Logger_Alias::log('Alias\System\Happiness #' . $currentSystem->getId() . ':' . $newFactions[$oldFaction['refFaction']]['Happiness']);
+                                }
+                            }
+
+                            // Faction states
                             $availableStates = array(
                                 'activeStates',
                                 'recoveringStates',
