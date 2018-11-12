@@ -167,6 +167,15 @@ class Information
                         }
                     }
                 }
+                else
+                {
+                    // Reset faction if needed... (Megaship not in the system anymore for example)
+                    if(!is_null($currentInformation) && (!is_null($currentInformation['refFaction']) || !is_null($currentInformation['factionState'])))
+                    {
+                        $newInformation['refFaction']   = new \Zend_Db_Expr('NULL');
+                        $newInformation['factionState'] = new \Zend_Db_Expr('NULL');
+                    }
+                }
 
                 // Security
                 $security       = trim($message['SystemSecurity']);
