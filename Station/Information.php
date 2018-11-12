@@ -120,9 +120,9 @@ class Information
 
                 foreach($currentSystemBodies AS $currentBody)
                 {
-                    if($currentBody['name'] == trim($message['Body']))
+                    if($currentBody->getName() == trim($message['Body']))
                     {
-                        $newBodyId = $currentBody['id'];
+                        $newBodyId = $currentBody->getId();
                     }
                 }
 

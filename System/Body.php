@@ -48,6 +48,7 @@ class Body
 
                     if((array_key_exists('StarSystem', $message) && stripos($testName, $message['StarSystem']) === false) || (array_key_exists('_systemName', $message) && stripos($testName, $message['_systemName']) === false))
                     {
+                        /*
                         $registry = \Zend_Registry::getInstance();
 
                         if($registry->offsetExists('sentryClient'))
@@ -59,6 +60,7 @@ class Body
                                 array('extra' => $message,)
                             );
                         }
+                        */
 
                         // Assume coming from Scan journal event, return false to put in temp table
                         if($useLogger === false)
@@ -115,7 +117,8 @@ class Body
                     }
                     else
                     {
-                        //TODO: Looks like new belt cluster message
+                        // Belt cluster are just useless, we rely on belts sent with the parent body!
+                        /*
                         $registry = \Zend_Registry::getInstance();
 
                         if($registry->offsetExists('sentryClient'))
@@ -127,6 +130,7 @@ class Body
                                 array('extra' => $message,)
                             );
                         }
+                        */
                     }
                 }
                 else
