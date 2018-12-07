@@ -802,27 +802,29 @@ class Body
                         {
                             \EDSM_Api_Logger_Alias::log('Alias\Body\Ring\Type #' . $currentBody . ':' . $ring['RingClass']);
                         }
+                        else
+                        {
+                            $ring = array(
+                                'refBody'   => $currentBody,
+                                'type'      => $ringType,
+                                'name'      => $ring['Name'],
+                                'mass'      => $ring['MassMT'],
+                                'iRad'      => $ring['InnerRad'],
+                                'oRad'      => $ring['OuterRad'],
+                            );
 
-                        $ring = array(
-                            'refBody'   => $currentBody,
-                            'type'      => $ringType,
-                            'name'      => $ring['Name'],
-                            'mass'      => $ring['MassMT'],
-                            'iRad'      => $ring['InnerRad'],
-                            'oRad'      => $ring['OuterRad'],
-                        );
-
-                        if(stripos($ring['name'], 'ring') !== false)
-                        {
-                            $rings[] = $ring;
-                        }
-                        elseif(stripos($ring['name'], 'belt') !== false)
-                        {
-                            $belts[] = $ring;
-                        }
-                        elseif(!in_array($ring['name'], array('Dahan 3 r1', 'Dahan 3 r2', 'Dahan 3 r3', 'Hathor r1'))) // Exclude EDDI bug
-                        {
-                            \EDSM_Api_Logger_Alias::log('Unknown ring type? #' . $currentBody . ':' . $ring['name']);
+                            if(stripos($ring['name'], 'ring') !== false || in_array(substr($ring['name'], -3), array(' r1', ' r2', ' r3', ' r4', ' r5')))
+                            {
+                                $rings[] = $ring;
+                            }
+                            elseif(stripos($ring['name'], 'belt') !== false)
+                            {
+                                $belts[] = $ring;
+                            }
+                            else
+                            {
+                                \EDSM_Api_Logger_Alias::log('Unknown ring type? #' . $currentBody . ':' . $ring['name']);
+                            }
                         }
                     }
 
