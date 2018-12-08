@@ -63,10 +63,7 @@ class PowerPlay
                         }
                         else
                         {
-                            \EDSM_Api_Logger_Alias::log(
-                                'Alias\System\Power: ' . $power . ' (Sofware#' . static::$softwareId . ')',
-                                array('file' => __FILE__, 'line' => __LINE__,)
-                            );
+                            \EDSM_Api_Logger_Alias::log('Alias\System\Power: ' . $power);
                         }
                     }
                 }
