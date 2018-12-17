@@ -290,7 +290,7 @@ class Faction
                                         }
                                         else
                                         {
-                                            \EDSM_Api_Logger_Alias::log('Alias\System\State #' . $currentSystem->getId() . ':' . $currentStates['State']);
+                                            \EDSM_Api_Logger_Alias::log('Alias\System\State #' . $currentSystem->getId() . ':' . $currentState['State']);
                                         }
                                     }
 
