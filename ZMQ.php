@@ -45,11 +45,11 @@ while (true)
         EDSM_Api_Logger::log('');
         EDSM_Api_Logger::log('<span class="text-success">Connecting to: ' . $relayEDDN . '</span>');
         EDSM_Api_Logger::log('');
-        
+
         while(true)
         {
             $message = $socket->recv();
-            
+
             if($message === false)
             {
                 $socket->disconnect($relayEDDN);
@@ -58,9 +58,9 @@ while (true)
                 EDSM_Api_Logger::log('');
                 break;
             }
-            
+
             $messages['messages'][] = $message;
-            
+
             if(count($messages['messages']) >= $messagesBatch || time() > ($lastTimeMessages + $messagesBatchTime))
             {
                 // Create message temp cache
@@ -69,25 +69,25 @@ while (true)
                 {
                     $cacheKey = 'EDDN_' . sha1(microtime()) . '_' . mt_rand();
                 }
-                
+
                 // Save messages batch
                 $cache->save($messages, $cacheKey, array(), 300);
-                
+
                 // Execute message batch handle
-                EDSM_Api_Logger::log('<span class="text-success">Execute batch (' . count($messages['messages']) . '): ' . $cacheKey . '</span>');                
-                exec('/usr/bin/php7.2 -f ' . LIBRARY_PATH . '/EDDN/EDDN.php -- "' . $cacheKey . '" > /dev/null 2>&1 &');
-                
-                // Purge messages and reset timer              
+                EDSM_Api_Logger::log('<span class="text-success">Execute batch (' . count($messages['messages']) . '): ' . $cacheKey . '</span>');
+                exec('/usr/bin/php7.3 -f ' . LIBRARY_PATH . '/EDDN/EDDN.php -- "' . $cacheKey . '" > /dev/null 2>&1 &');
+
+                // Purge messages and reset timer
                 $messages           = $messagesDefault;
                 $lastTimeMessages   = time();
-                
+
                 if(file_exists(APPLICATION_PATH . '/Data/edsm.eddn.stop'))
                 {
                     unlink(APPLICATION_PATH . '/Data/edsm.eddn.stop');
-                    
+
                     EDSM_Api_Logger::log('');
                     EDSM_Api_Logger::log('<span class="text-danger">Stop signal (' . APPLICATION_ENV . ')</span>');
-                    
+
                     exit();
                 }
             }

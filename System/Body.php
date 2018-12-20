@@ -46,7 +46,10 @@ class Body
                     // Check name
                     $testName = \Alias\Body\Name::get($currentSystem->getId(), $message['BodyName']);
 
-                    if((array_key_exists('StarSystem', $message) && stripos($testName, $message['StarSystem']) === false) || (array_key_exists('_systemName', $message) && stripos($testName, $message['_systemName']) === false))
+                    if(
+                           (array_key_exists('StarSystem', $message) && stripos($testName, $message['StarSystem']) === false)
+                        || (array_key_exists('_systemName', $message) && stripos($testName, $message['_systemName']) === false)
+                    )
                     {
                         /*
                         $registry = \Zend_Registry::getInstance();
