@@ -268,7 +268,7 @@ class Faction
                                 {
                                     $temp           = array();
 
-                                    foreach($currentStates AS $currentState)
+                                    foreach($currentStates AS $stateKey => $currentState)
                                     {
                                         $stateAlias = State::getFromFd($currentState['State']);
 
@@ -287,6 +287,13 @@ class Faction
                                                     'state'     => $stateAlias,
                                                 );
                                             }
+
+                                            // Populate the first 3 active states to ease system search
+                                            if($currentAvailableState == 'activeStates' && $stateKey < 3)
+                                            {
+                                                $updateArray['activeState' . ($stateKey + 1)] = $stateAlias;
+
+                                            }
                                         }
                                         else
                                         {
@@ -296,6 +303,16 @@ class Faction
 
                                     $currentStates = \Zend_Json::encode($temp);
                                     unset($temp);
+                                }
+                                else
+                                {
+                                    // Reset activeStates search fields
+                                    if($currentAvailableState == 'activeStates')
+                                    {
+                                        $updateArray['activeState1']    = null;
+                                        $updateArray['activeState2']    = null;
+                                        $updateArray['activeState3']    = null;
+                                    }
                                 }
 
                                 if(!array_key_exists($currentAvailableState, $oldFaction) || $oldFaction[$currentAvailableState] != $currentStates)

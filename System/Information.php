@@ -211,21 +211,9 @@ class Information
 
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>        ' . $currentSystem->getName() . ' (#' . $currentSystem->getId() . ') updated information.');
 
-                    if(array_key_exists('allegiance', $newInformation))
-                    {
-                        \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>            - Allegiance     : ' . Allegiance::get($newInformation['allegiance']));
-                    }
-                    if(array_key_exists('government', $newInformation))
-                    {
-                        \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>            - Government     : ' . Government::get($newInformation['government']));
-                    }
                     if(array_key_exists('refFaction', $newInformation) && !$newInformation['refFaction'] instanceof \Zend_Db_Expr)
                     {
                         \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>            - Faction        : ' . \EDSM_System_Station_Faction::getInstance($newInformation['refFaction'])->getName() . ' #' . $newInformation['refFaction']);
-                    }
-                    if(array_key_exists('factionState', $newInformation) && !$newInformation['factionState'] instanceof \Zend_Db_Expr)
-                    {
-                        \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Information:</span>            - Faction State  : ' . State::get($newInformation['factionState']));
                     }
                     if(array_key_exists('security', $newInformation))
                     {
