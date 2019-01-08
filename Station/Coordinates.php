@@ -30,7 +30,7 @@ class Coordinates
             {
                 $station = $stationsModel->getById($station['id']);
 
-                if($station['refSystem'] != $currentSystem->getId() && $station['type'] == 12)
+                if($station['refSystem'] != $currentSystem->getId() && in_array($station['type'], array(12, 21)))
                 {
                     // Add old system to history
                     if(empty($systemsHistory))
