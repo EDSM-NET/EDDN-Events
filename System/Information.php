@@ -96,25 +96,6 @@ class Information
                     $newInformation['allegiance'] = 0;
                 }
 
-                // Government
-                $government         = trim($message['SystemGovernment']);
-                $governmentAlias    = Government::getFromFd($government);
-
-                if(!empty($government))
-                {
-                    if(!is_null($governmentAlias))
-                    {
-                        if(is_null($currentInformation) || $currentInformation['government'] != $governmentAlias)
-                        {
-                            $newInformation['government'] = $governmentAlias;
-                        }
-                    }
-                    else
-                    {
-                        \EDSM_Api_Logger_Alias::log('Alias\System\Government #' . $currentSystem->getId() . ':' . $government);
-                    }
-                }
-
                 // Faction
                 if(array_key_exists('SystemFaction', $message))
                 {
@@ -138,42 +119,14 @@ class Information
                         {
                             $newInformation['refFaction'] = $factionId;
                         }
-
-                        // Faction State
-                        if(array_key_exists('FactionState', $message))
-                        {
-                            $state      = trim($message['FactionState']);
-                            $stateAlias = State::getFromFd($state);
-
-                            if(!empty($state) && !is_null($stateAlias))
-                            {
-                                if(is_null($currentInformation) || $currentInformation['factionState'] != $stateAlias)
-                                {
-                                    $newInformation['factionState'] = $stateAlias;
-                                }
-                            }
-                            elseif(!empty($state) && is_null($stateAlias))
-                            {
-                                \EDSM_Api_Logger_Alias::log('Alias\System\State #' . $currentSystem->getId() . ':' . $state);
-                            }
-                            elseif(!is_null($currentInformation) && $currentInformation['factionState'] != 0)
-                            {
-                                $newInformation['factionState'] = 0;
-                            }
-                        }
-                        elseif(!is_null($currentInformation) && $currentInformation['factionState'] != 0)
-                        {
-                            $newInformation['factionState'] = 0;
-                        }
                     }
                 }
                 else
                 {
                     // Reset faction if needed... (Megaship not in the system anymore for example)
-                    if(!is_null($currentInformation) && (!is_null($currentInformation['refFaction']) || !is_null($currentInformation['factionState'])))
+                    if(!is_null($currentInformation) && !is_null($currentInformation['refFaction']))
                     {
                         $newInformation['refFaction']   = new \Zend_Db_Expr('NULL');
-                        $newInformation['factionState'] = new \Zend_Db_Expr('NULL');
                     }
                 }
 
