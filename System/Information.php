@@ -77,6 +77,7 @@ class Information
                 }
 
                 // Allegiance
+                //TODO: UPdate to only take into account Thargoid/Guardian sites
                 $allegiance         = trim($message['SystemAllegiance']);
                 $allegianceAlias    = Allegiance::getFromFd($allegiance);
 

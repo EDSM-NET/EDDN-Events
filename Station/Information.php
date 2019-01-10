@@ -46,22 +46,6 @@ class Information
 
                     if(!is_null($typeAlias))
                     {
-                        // Planetary outpost, check againt forced planetary port
-                        if($typeAlias == 5)
-                        {
-                            $marketId = $currentStation->getMarketId();
-
-                            if(!is_null($marketId))
-                            {
-                                $planetatyPort = include LIBRARY_PATH . '/Alias/Station/planetaryPort.php';
-
-                                if(in_array($marketId, $planetatyPort))
-                                {
-                                    $typeAlias = 6;
-                                }
-                            }
-                        }
-
                         if($currentStation->getType() != $typeAlias)
                         {
                             $newInformation['type'] = $typeAlias;
