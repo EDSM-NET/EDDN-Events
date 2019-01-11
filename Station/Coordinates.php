@@ -12,6 +12,11 @@ class Coordinates
 {
     static public function handle($systemId, $message, $softwareName, $softwareVersion)
     {
+        if(array_key_exists('StationName', $message) && $message['StationName'] == '')
+        {
+            return null;
+        }
+
         $currentSystem  = \Component\System::getInstance($systemId);
 
         // Search station by MarketID
