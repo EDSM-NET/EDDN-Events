@@ -31,7 +31,7 @@ $socket->setSockOpt(ZMQ::SOCKOPT_SUBSCRIBE, "");
 $socket->setSockOpt(ZMQ::SOCKOPT_RCVTIMEO, 600000);
 
 $messagesDefault    = array('batch' => true, 'messages' => array());
-$messagesBatch      = 100;
+$messagesBatch      = 250;
 $messagesBatchTime  = 10;
 
 $messages           = $messagesDefault;
