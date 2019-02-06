@@ -97,6 +97,18 @@ class Information
                     $newInformation['allegiance'] = 0;
                 }
 
+                // New Q4 form...
+                // "SystemFaction": { "Name":"Union of Luhman 16 Values Party", "FactionState":"CivilWar" }
+                if(array_key_exists('SystemFaction', $message) && is_array($message['SystemFaction']))
+                {
+                    if(array_key_exists('FactionState', $message['SystemFaction']))
+                    {
+                        $message['FactionState']    = $message['SystemFaction']['FactionState'];
+                    }
+                    
+                    $message['SystemFaction']   = $message['SystemFaction']['Name'];
+                }
+
                 // Faction
                 if(array_key_exists('SystemFaction', $message))
                 {

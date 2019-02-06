@@ -51,25 +51,13 @@ class Body
                         || (array_key_exists('_systemName', $message) && stripos($testName, $message['_systemName']) === false)
                     )
                     {
-                        /*
-                        $registry = \Zend_Registry::getInstance();
-
-                        if($registry->offsetExists('sentryClient'))
-                        {
-                            $sentryClient = $registry->offsetGet('sentryClient');
-                            $sentryClient->captureMessage(
-                                'Wrong body name',
-                                array('currentSystem' => $currentSystem, 'procGenName' => $testName),
-                                array('extra' => $message,)
-                            );
-                        }
-                        */
-
                         // Assume coming from Scan journal event, return false to put in temp table
                         if($useLogger === false)
                         {
                             return false;
                         }
+
+                        return null;
                     }
 
                     if(array_key_exists('StarType', $message) || array_key_exists('PlanetClass', $message))
@@ -278,9 +266,19 @@ class Body
                 }
 
                 // General variables
-                if(array_key_exists('DistanceFromArrivalLS', $message) && (is_null($currentBodyData['distanceToArrival']) || $message['DistanceFromArrivalLS'] != $currentBodyData['distanceToArrival']))
+                if(array_key_exists('DistanceFromArrivalLS', $message))
                 {
-                    $currentBodyNewData['distanceToArrival'] = $message['DistanceFromArrivalLS'];
+                    if(is_null($currentBodyData['distanceToArrival']))
+                    {
+                        $currentBodyNewData['distanceToArrival'] = $message['DistanceFromArrivalLS'];
+                    }
+                    elseif($message['DistanceFromArrivalLS'] != $currentBodyData['distanceToArrival'])
+                    {
+                        if(abs($message['DistanceFromArrivalLS'] - $currentBodyData['distanceToArrival']) > 5)
+                        {
+                            $currentBodyNewData['distanceToArrival'] = $message['DistanceFromArrivalLS'];
+                        }
+                    }
                 }
 
                 // Surface variables
@@ -753,7 +751,7 @@ class Body
                         {
                             if($oldMaterial['qty'] != $qty)
                             {
-                                $systemsBodiesMaterialsModel->updateById($oldMaterial['id'], array(
+                                $systemsBodiesMaterialsModel->updateByRefBodyAndRefMaterial($currentBody, $oldMaterial['refMaterial'], array(
                                     'qty'           => $qty,
                                 ));
                             }
@@ -774,7 +772,7 @@ class Body
                     {
                         foreach($oldMaterials AS $values)
                         {
-                            $systemsBodiesMaterialsModel->deleteById($values['id']);
+                            $systemsBodiesMaterialsModel->deleteByRefBodyAndRefMaterial($currentBody, $values['refMaterial']);
                         }
                     }
 
@@ -816,6 +814,7 @@ class Body
                                 'oRad'      => $ring['OuterRad'],
                             );
 
+                            //TODO: Handle Belt alias for insertion
                             if(stripos($ring['name'], 'ring') !== false || in_array(substr($ring['name'], -3), array(' r1', ' r2', ' r3', ' r4', ' r5')))
                             {
                                 $rings[] = $ring;
@@ -929,10 +928,7 @@ class Body
                     $systemsBodiesRingsModel->deleteByRefBody($currentBody);
                 }
 
-                if(count($currentBodyNewData) > 0)
-                {
-                    return $currentBodyNewData;
-                }
+                return $currentBody;
             }
         }
 
