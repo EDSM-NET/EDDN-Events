@@ -176,6 +176,18 @@ class Information
                 }
             }
 
+            // New Q4 form...
+            // "StationFaction": { "Name":"Union of Luhman 16 Values Party", "FactionState":"CivilWar" }
+            if(array_key_exists('StationFaction', $message) && is_array($message['StationFaction']))
+            {
+                if(array_key_exists('FactionState', $message['StationFaction']))
+                {
+                    $message['FactionState']    = $message['StationFaction']['FactionState'];
+                }
+
+                $message['StationFaction']  = $message['StationFaction']['Name'];
+            }
+
             // Faction
             if(array_key_exists('StationFaction', $message) && !in_array($currentStation->getId(), EngineerStation::getAll()))
             {
