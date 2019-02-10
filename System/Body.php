@@ -572,7 +572,8 @@ class Body
 
                     foreach($composition AS $type => $qty)
                     {
-                        $oldComponent = null;
+                        $oldComponent   = null;
+                        $qty            = round($qty * 100);
 
                         foreach($oldComposition AS $key => $values)
                         {
@@ -587,21 +588,42 @@ class Body
                         // Update QTY if composition was already stored
                         if(!is_null($oldComponent))
                         {
-                            if($oldComponent['qty'] != $qty)
+                            if($oldComponent['percent'] != $qty)
                             {
-                                $systemsBodiesAtmosphereCompositionModel->updateById($oldComponent['id'], array(
-                                    'qty'           => $qty,
+                                $systemsBodiesAtmosphereCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
+                                    'percent'       => $qty,
                                 ));
                             }
                         }
                         // Insert new composition
                         else
                         {
-                            $systemsBodiesAtmosphereCompositionModel->insert(array(
-                                'refBody'           => $currentBody,
-                                'refComposition'    => $type,
-                                'qty'               => $qty,
-                            ));
+                            try
+                            {
+                                $systemsBodiesAtmosphereCompositionModel->insert(array(
+                                    'refBody'           => $currentBody,
+                                    'refComposition'    => $type,
+                                    'percent'           => $qty,
+                                ));
+                            }
+                            catch(\Zend_Db_Exception $e)
+                            {
+                                // Based on unique index, this entry was already saved.
+                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
+                                {
+
+                                }
+                                else
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -610,11 +632,11 @@ class Body
                     {
                         foreach($oldComposition AS $values)
                         {
-                            $systemsBodiesAtmosphereCompositionModel->deleteById($values['id']);
+                            $systemsBodiesAtmosphereCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
                         }
                     }
 
-                    unset($composition);
+                    unset($composition, $oldComposition);
                 }
                 elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
                 {
@@ -639,7 +661,7 @@ class Body
                         }
                         else
                         {
-                            $composition[$componentType] = $qty;
+                            $composition[$componentType] = round($qty * 10000);
                         }
                     }
 
@@ -660,21 +682,42 @@ class Body
                         // Update QTY if composition was already stored
                         if(!is_null($oldComponent))
                         {
-                            if($oldComponent['qty'] != $qty)
+                            if($oldComponent['percent'] != $qty)
                             {
-                                $systemsBodiesSolidCompositionModel->updateById($oldComponent['id'], array(
-                                    'qty'           => $qty,
+                                $systemsBodiesSolidCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
+                                    'percent'       => $qty,
                                 ));
                             }
                         }
                         // Insert new composition
                         else
                         {
-                            $systemsBodiesSolidCompositionModel->insert(array(
-                                'refBody'           => $currentBody,
-                                'refComposition'    => $type,
-                                'qty'               => $qty,
-                            ));
+                            try
+                            {
+                                $systemsBodiesSolidCompositionModel->insert(array(
+                                    'refBody'           => $currentBody,
+                                    'refComposition'    => $type,
+                                    'percent'           => $qty,
+                                ));
+                            }
+                            catch(\Zend_Db_Exception $e)
+                            {
+                                // Based on unique index, this entry was already saved.
+                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
+                                {
+
+                                }
+                                else
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -683,11 +726,11 @@ class Body
                     {
                         foreach($oldComposition AS $values)
                         {
-                            $systemsBodiesSolidCompositionModel->deleteById($values['id']);
+                            $systemsBodiesSolidCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
                         }
                     }
 
-                    unset($composition);
+                    unset($composition, $oldComposition);
                 }
                 elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
                 {
@@ -753,17 +796,40 @@ class Body
                             {
                                 $systemsBodiesMaterialsModel->updateByRefBodyAndRefMaterial($currentBody, $oldMaterial['refMaterial'], array(
                                     'qty'           => $qty,
+                                    'percent'       => round($qty * 100),
                                 ));
                             }
                         }
                         // Insert new material
                         else
                         {
-                            $systemsBodiesMaterialsModel->insert(array(
-                                'refBody'       => $currentBody,
-                                'refMaterial'   => $type,
-                                'qty'           => $qty,
-                            ));
+                            try
+                            {
+                                $systemsBodiesMaterialsModel->insert(array(
+                                    'refBody'       => $currentBody,
+                                    'refMaterial'   => $type,
+                                    'qty'           => $qty,
+                                    'percent'       => round($qty * 100),
+                                ));
+                            }
+                            catch(\Zend_Db_Exception $e)
+                            {
+                                // Based on unique index, this entry was already saved.
+                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
+                                {
+
+                                }
+                                else
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
                         }
                     }
 
