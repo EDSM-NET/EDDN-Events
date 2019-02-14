@@ -35,15 +35,39 @@ class Body
             // Try to find body by name/refSystem
             if(is_null($currentBody))
             {
-                $currentBody = $systemsBodiesModel->fetchRow(
-                    $systemsBodiesModel->select()
-                                       ->where('refSystem = ?', $currentSystem->getId())
-                                       ->where('name = ?', $message['BodyName'])
-                );
+                // Is it an aliased body name or can we remove the system name from it?
+                $bodyName   = $message['BodyName'];
+                $isAliased  = \Alias\Body\Name::isAliased($systemId, $bodyName);
+
+                if($isAliased === false)
+                {
+                    $systemName = $currentSystem->getName();
+
+                    if(substr($bodyName, 0, strlen($systemName)) == $systemName)
+                    {
+                        $bodyName = trim(str_replace($systemName, '', $bodyName));
+                    }
+                }
+
+                // Use cache to fetch all bodies in the current system
+                $systemBodies = $systemsBodiesModel->getByRefSystem($systemId);
+
+                if(!is_null($systemBodies) && count($systemBodies) > 0)
+                {
+                    foreach($systemBodies AS $currentSystemBody)
+                    {
+                        // Complete name format or just
+                        if($currentSystemBody['name'] == $bodyName || $currentSystemBody['name'] == $message['BodyName'])
+                        {
+                            $currentBody = $currentSystemBody['id'];
+                            break;
+                        }
+                    }
+                }
 
                 if(is_null($currentBody))
                 {
-                    // Check name
+                    // Check name by converting the body name to the real procgen name
                     $testName = \Alias\Body\Name::get($currentSystem->getId(), $message['BodyName']);
 
                     if(
@@ -64,7 +88,7 @@ class Body
                     {
                         $insert = array(
                             'refSystem'     => $systemId,
-                            'name'          => $message['BodyName'],
+                            'name'          => $bodyName,
                         );
 
                         if(array_key_exists('BodyID', $message))
@@ -87,12 +111,21 @@ class Body
                             // Based on unique index, this body entry was already saved.
                             if(strpos($e->getMessage(), '1062 Duplicate') !== false)
                             {
-                                $currentBody = $systemsBodiesModel->fetchRow(
-                                    $systemsBodiesModel->select()
-                                                       ->where('refSystem = ?', $currentSystem->getId())
-                                                       ->where('name = ?', $message['BodyName'])
-                                );
-                                $currentBody = $currentBody->id;
+                                // Use cache to fetch all bodies in the current system
+                                $systemBodies = $systemsBodiesModel->getByRefSystem($systemId);
+
+                                if(!is_null($systemBodies) && count($systemBodies) > 0)
+                                {
+                                    foreach($systemBodies AS $currentSystemBody)
+                                    {
+                                        // Complete name format or just
+                                        if($currentSystemBody['name'] == $bodyName || $currentSystemBody['name'] == $message['BodyName'])
+                                        {
+                                            $currentBody = $currentSystemBody['id'];
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -123,10 +156,6 @@ class Body
                         }
                         */
                     }
-                }
-                else
-                {
-                    $currentBody = $currentBody->id;
                 }
             }
 
@@ -661,13 +690,14 @@ class Body
                         }
                         else
                         {
-                            $composition[$componentType] = round($qty * 10000);
+                            $composition[$componentType] = $qty;
                         }
                     }
 
                     foreach($composition AS $type => $qty)
                     {
-                        $oldComponent = null;
+                        $oldComponent   = null;
+                        $qty            = round($qty * 10000);
 
                         foreach($oldComposition AS $key => $values)
                         {
@@ -777,7 +807,8 @@ class Body
 
                     foreach($materials AS $type => $qty)
                     {
-                        $oldMaterial = null;
+                        $oldMaterial    = null;
+                        $qty            = round($qty * 100);
 
                         foreach($oldMaterials AS $key => $values)
                         {
@@ -792,11 +823,10 @@ class Body
                         // Update QTY if materials was already stored
                         if(!is_null($oldMaterial))
                         {
-                            if($oldMaterial['qty'] != $qty)
+                            if($oldMaterial['percent'] != $qty)
                             {
                                 $systemsBodiesMaterialsModel->updateByRefBodyAndRefMaterial($currentBody, $oldMaterial['refMaterial'], array(
-                                    'qty'           => $qty,
-                                    'percent'       => round($qty * 100),
+                                    'percent'       => $qty,
                                 ));
                             }
                         }
@@ -808,8 +838,7 @@ class Body
                                 $systemsBodiesMaterialsModel->insert(array(
                                     'refBody'       => $currentBody,
                                     'refMaterial'   => $type,
-                                    'qty'           => $qty,
-                                    'percent'       => round($qty * 100),
+                                    'percent'       => $qty,
                                 ));
                             }
                             catch(\Zend_Db_Exception $e)
