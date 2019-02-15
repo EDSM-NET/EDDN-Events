@@ -27,28 +27,29 @@ class Body
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {
             $currentBody                = null;
+
             $systemsBodiesModel         = new \Models_Systems_Bodies;
             $systemsBodiesParentsModel  = new \Models_Systems_Bodies_Parents;
             $systemsBodiesSurfaceModel  = new \Models_Systems_Bodies_Surface;
             $systemsBodiesOrbitalModel  = new \Models_Systems_Bodies_Orbital;
 
+            // Is it an aliased body name or can we remove the system name from it?
+            $bodyName   = $message['BodyName'];
+            $isAliased  = \Alias\Body\Name::isAliased($systemId, $bodyName);
+
+            if($isAliased === false)
+            {
+                $systemName = $currentSystem->getName();
+
+                if(substr(strtolower($bodyName), 0, strlen($systemName)) == strtolower($systemName))
+                {
+                    $bodyName = trim(str_ireplace($systemName, '', $bodyName));
+                }
+            }
+
             // Try to find body by name/refSystem
             if(is_null($currentBody))
             {
-                // Is it an aliased body name or can we remove the system name from it?
-                $bodyName   = $message['BodyName'];
-                $isAliased  = \Alias\Body\Name::isAliased($systemId, $bodyName);
-
-                if($isAliased === false)
-                {
-                    $systemName = $currentSystem->getName();
-
-                    if(substr($bodyName, 0, strlen($systemName)) == $systemName)
-                    {
-                        $bodyName = trim(str_replace($systemName, '', $bodyName));
-                    }
-                }
-
                 // Use cache to fetch all bodies in the current system
                 $systemBodies = $systemsBodiesModel->getByRefSystem($systemId);
 
@@ -56,10 +57,18 @@ class Body
                 {
                     foreach($systemBodies AS $currentSystemBody)
                     {
-                        // Complete name format or just
-                        if($currentSystemBody['name'] == $bodyName || $currentSystemBody['name'] == $message['BodyName'])
+                        // Complete name format or just body part
+                        if(strtolower($currentSystemBody['name']) == strtolower($bodyName) || strtolower($currentSystemBody['name']) == strtolower($message['BodyName']))
                         {
-                            $currentBody = $currentSystemBody['id'];
+                            $currentBody        = $currentSystemBody['id'];
+                            $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+
+                            // Discard older message...
+                            if(strtotime($message['timestamp']) <= strtotime($currentBodyData['dateUpdated']))
+                            {
+                                return $currentBody;
+                            }
+
                             break;
                         }
                     }
@@ -98,7 +107,8 @@ class Body
 
                         try
                         {
-                            $currentBody = $systemsBodiesModel->insert($insert);
+                            $currentBody        = $systemsBodiesModel->insert($insert);
+                            $currentBodyData    = array(); // Empty array to avoid getting the line from the database
 
                             if($useLogger === true)
                             {
@@ -118,10 +128,17 @@ class Body
                                 {
                                     foreach($systemBodies AS $currentSystemBody)
                                     {
-                                        // Complete name format or just
-                                        if($currentSystemBody['name'] == $bodyName || $currentSystemBody['name'] == $message['BodyName'])
+                                        // Complete name format or just body part
+                                        if(strtolower($currentSystemBody['name']) == strtolower($bodyName) || strtolower($currentSystemBody['name']) == strtolower($message['BodyName']))
                                         {
-                                            $currentBody = $currentSystemBody['id'];
+                                            $currentBody        = $currentSystemBody['id'];
+                                            $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+
+                                            if(strtotime($message['timestamp']) <= strtotime($currentBodyData['dateUpdated']))
+                                            {
+                                                return $currentBody;
+                                            }
+
                                             break;
                                         }
                                     }
@@ -161,21 +178,20 @@ class Body
 
             if(!is_null($currentBody))
             {
-                $currentBodyData            = $systemsBodiesModel->getById($currentBody);
                 $currentBodyNewData         = array();
-
-                $currentBodyParentsData     = $systemsBodiesParentsModel->getByRefBody($currentBody);
                 $currentBodyNewParentsData  = array();
-
-                $currentBodySurfaceData     = $systemsBodiesSurfaceModel->getByRefBody($currentBody);
                 $currentBodyNewSurfaceData  = array();
-
-                $currentBodyOrbitalData     = $systemsBodiesOrbitalModel->getByRefBody($currentBody);
                 $currentBodyNewOrbitalData  = array();
+
+
+                if(!array_key_exists('name', $currentBodyData) || $bodyName != $currentBodyData['name'])
+                {
+                    $currentBodyNewData['name'] = $bodyName;
+                }
 
                 if(array_key_exists('BodyID', $message))
                 {
-                    if(is_null($currentBodyData['id64']) || $currentBodyData['id64'] != $message['BodyID'])
+                    if(!array_key_exists('id64', $currentBodyData) || $currentBodyData['id64'] != $message['BodyID'])
                     {
                         $currentBodyNewData['id64'] = $message['BodyID'];
                     }
@@ -200,7 +216,7 @@ class Body
                         }
                     }
 
-                    if(!is_null($message['Parents']) && (is_null($currentBodyParentsData) || $message['Parents'] != $currentBodyParentsData['parents']))
+                    if(!is_null($message['Parents']) && (!array_key_exists('parents', $currentBodyData) || $message['Parents'] != $currentBodyData['parents']))
                     {
                         $currentBodyNewParentsData['parents'] = $message['Parents'];
                     }
@@ -208,27 +224,24 @@ class Body
 
                 if(array_key_exists('StarType', $message))
                 {
-                    if($currentBodyData['group'] != 1)
+                    if(!array_key_exists('group', $currentBodyData) || $currentBodyData['group'] != 1)
                     {
                         $currentBodyNewData['group'] = 1;
                     }
 
-                    if(array_key_exists('StarType', $message))
+                    $starType = StarType::getFromFd($message['StarType']);
+
+                    if(is_null($starType))
                     {
-                        $starType = StarType::getFromFd($message['StarType']);
-
-                        if(is_null($starType))
-                        {
-                            \EDSM_Api_Logger_Alias::log('Alias\Body\Star\Type #' . $currentBody . ':' . $message['StarType']);
-                        }
-
-                        if($starType != $currentBodyData['type'])
-                        {
-                            $currentBodyNewData['type'] = $starType;
-                        }
+                        \EDSM_Api_Logger_Alias::log('Alias\Body\Star\Type #' . $currentBody . ':' . $message['StarType']);
                     }
 
-                    if(array_key_exists('Luminosity', $message) && $message['Luminosity'] != $currentBodyData['luminosity'])
+                    if(!array_key_exists('type', $currentBodyData) || $starType != $currentBodyData['type'])
+                    {
+                        $currentBodyNewData['type'] = $starType;
+                    }
+
+                    if(array_key_exists('Luminosity', $message) && (!array_key_exists('luminosity', $currentBodyData) || $message['Luminosity'] != $currentBodyData['luminosity']))
                     {
                         $currentBodyNewData['luminosity'] = $message['Luminosity'];
                     }
@@ -240,56 +253,51 @@ class Body
                 }
                 elseif(array_key_exists('PlanetClass', $message))
                 {
-                    if($currentBodyData['group'] != 2)
+                    if(!array_key_exists('group', $currentBodyData) || $currentBodyData['group'] != 2)
                     {
                         $currentBodyNewData['group'] = 2;
                     }
 
-                    if(array_key_exists('PlanetClass', $message))
+                    $planetType = PlanetType::getFromFd($message['PlanetClass']);
+
+                    if(is_null($planetType))
                     {
-                        $planetType = PlanetType::getFromFd($message['PlanetClass']);
+                        \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Type #' . $currentBody . ':' . $message['PlanetClass']);
+                    }
 
-                        if(is_null($planetType))
-                        {
-                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Type #' . $currentBody . ':' . $message['PlanetClass']);
-                        }
-
-                        if($planetType != $currentBodyData['type'])
-                        {
-                            $currentBodyNewData['type'] = $planetType;
-                        }
+                    if(!array_key_exists('type', $currentBodyData) || $planetType != $currentBodyData['type'])
+                    {
+                        $currentBodyNewData['type'] = $planetType;
                     }
 
                     if(array_key_exists('TidalLock', $message))
                     {
-                        if($message['TidalLock'] == true && (is_null($currentBodyOrbitalData) || $currentBodyOrbitalData['rotationalPeriodTidallyLocked'] != 1))
+                        if($message['TidalLock'] == true && (!array_key_exists('rotationalPeriodTidallyLocked', $currentBodyData) || $currentBodyData['rotationalPeriodTidallyLocked'] != 1))
                         {
                             $currentBodyNewOrbitalData['rotationalPeriodTidallyLocked'] = 1;
                         }
-                        elseif(is_null($currentBodyOrbitalData))
+                        elseif(!array_key_exists('rotationalPeriodTidallyLocked', $currentBodyData) || is_null($currentBodyData['rotationalPeriodTidallyLocked']) || $currentBodyData['rotationalPeriodTidallyLocked'] != 0)
                         {
                             $currentBodyNewOrbitalData['rotationalPeriodTidallyLocked'] = 0;
                         }
                     }
 
-                    if(array_key_exists('Landable', $message))
+                    if(array_key_exists('Materials', $message) && count($message['Materials']) > 0) // Force landable ;)
                     {
-                        if($message['Landable'] == true && $currentBodyData['isLandable'] != 1)
+                        if(!array_key_exists('isLandable', $currentBodyData) || $currentBodyData['isLandable'] != 1)
                         {
                             $currentBodyNewData['isLandable'] = 1;
-                        }
-                        elseif($currentBodyData['isLandable'] != 0)
-                        {
-                            $currentBodyNewData['isLandable'] = 0;
                         }
                     }
-
-                    if(array_key_exists('Materials', $message) && count($message['Materials']) > 0)
+                    elseif(array_key_exists('Landable', $message))
                     {
-                        // Force landable ;)
-                        if($currentBodyData['isLandable'] != 1)
+                        if($message['Landable'] == true && (!array_key_exists('isLandable', $currentBodyData) || $currentBodyData['isLandable'] != 1))
                         {
                             $currentBodyNewData['isLandable'] = 1;
+                        }
+                        elseif(!array_key_exists('isLandable', $currentBodyData) || $currentBodyData['isLandable'] != 0)
+                        {
+                            $currentBodyNewData['isLandable'] = 0;
                         }
                     }
                 }
@@ -297,49 +305,70 @@ class Body
                 // General variables
                 if(array_key_exists('DistanceFromArrivalLS', $message))
                 {
-                    if(is_null($currentBodyData['distanceToArrival']))
+                    // Only keep integer
+                    $message['DistanceFromArrivalLS'] = round($message['DistanceFromArrivalLS']);
+
+                    if(!array_key_exists('distanceToArrival', $currentBodyData) || is_null($currentBodyData['distanceToArrival']))
                     {
                         $currentBodyNewData['distanceToArrival'] = $message['DistanceFromArrivalLS'];
                     }
                     elseif($message['DistanceFromArrivalLS'] != $currentBodyData['distanceToArrival'])
                     {
-                        if(abs($message['DistanceFromArrivalLS'] - $currentBodyData['distanceToArrival']) > 5)
+                        if(abs($message['DistanceFromArrivalLS'] - $currentBodyData['distanceToArrival']) >= 5)
                         {
                             $currentBodyNewData['distanceToArrival'] = $message['DistanceFromArrivalLS'];
                         }
                     }
                 }
 
+                // Reserve Level
+                if(array_key_exists('ReserveLevel', $message))
+                {
+                    $reserveLevel = ReserveLevel::getFromFd($message['ReserveLevel']);
+
+                    if(!is_null($reserveLevel))
+                    {
+                        if(!array_key_exists('distanceToArrival', $currentBodyData) || $currentBodyData['reserveLevel'] != $reserveLevel)
+                        {
+                            $currentBodyNewData['reserveLevel'] = $reserveLevel;
+                        }
+                    }
+                    else
+                    {
+                        \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\ReserveLevel #' . $currentBody . ':' . $message['ReserveLevel']);
+                    }
+                }
+
                 // Surface variables
-                if(array_key_exists('Radius', $message) && (is_null($currentBodySurfaceData) || $message['Radius'] != $currentBodySurfaceData['radius']))
+                if(array_key_exists('Radius', $message) && (!array_key_exists('radius', $currentBodyData) || $message['Radius'] != $currentBodyData['radius']))
                 {
                     $currentBodyNewSurfaceData['radius'] = $message['Radius'];
                 }
-                if(array_key_exists('SurfaceTemperature', $message) && (is_null($currentBodySurfaceData) || $message['SurfaceTemperature'] != $currentBodySurfaceData['surfaceTemperature']))
+                if(array_key_exists('SurfaceTemperature', $message) && (!array_key_exists('surfaceTemperature', $currentBodyData) || $message['SurfaceTemperature'] != $currentBodyData['surfaceTemperature']))
                 {
                     $currentBodyNewSurfaceData['surfaceTemperature'] = $message['SurfaceTemperature'];
                 }
 
                 if(array_key_exists('StarType', $message))
                 {
-                    if(array_key_exists('Age_MY', $message) && (is_null($currentBodySurfaceData) || $message['Age_MY'] != $currentBodySurfaceData['age']) || is_null($currentBodySurfaceData['age']))
+                    if(array_key_exists('Age_MY', $message) && (!array_key_exists('age', $currentBodyData) || $message['Age_MY'] != $currentBodyData['age']))
                     {
                         $currentBodyNewSurfaceData['age'] = $message['Age_MY'];
                     }
 
-                    if(array_key_exists('StellarMass', $message) && (is_null($currentBodySurfaceData) || $message['StellarMass'] != $currentBodySurfaceData['mass']))
+                    if(array_key_exists('StellarMass', $message) && (!array_key_exists('mass', $currentBodyData) || $message['StellarMass'] != $currentBodyData['mass']))
                     {
                         $currentBodyNewSurfaceData['mass'] = $message['StellarMass'];
                     }
                 }
                 elseif(array_key_exists('PlanetClass', $message))
                 {
-                    if(array_key_exists('MassEM', $message) && (is_null($currentBodySurfaceData) || $message['MassEM'] != $currentBodySurfaceData['mass']))
+                    if(array_key_exists('MassEM', $message) && (!array_key_exists('mass', $currentBodyData) || $message['MassEM'] != $currentBodyData['mass']))
                     {
                         $currentBodyNewSurfaceData['mass'] = $message['MassEM'];
                     }
 
-                    if(array_key_exists('SurfacePressure', $message) && (is_null($currentBodySurfaceData) || $message['SurfacePressure'] != $currentBodySurfaceData['surfacePressure']))
+                    if(array_key_exists('SurfacePressure', $message) && (!array_key_exists('surfacePressure', $currentBodyData) || $message['SurfacePressure'] != $currentBodyData['surfacePressure']))
                     {
                         $currentBodyNewSurfaceData['surfacePressure'] = $message['SurfacePressure'];
                     }
@@ -354,11 +383,11 @@ class Body
                             \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Atmosphere #' . $currentBody . ':' . $message['Atmosphere'] . ':' . $message['AtmosphereType']);
                         }
 
-                        if(is_null($currentBodySurfaceData) || $prefix != $currentBodySurfaceData['atmospherePrefix'])
+                        if(!array_key_exists('atmospherePrefix', $currentBodyData) || $prefix != $currentBodyData['atmospherePrefix'])
                         {
                             $currentBodyNewSurfaceData['atmospherePrefix'] = $prefix;
                         }
-                        if(is_null($currentBodySurfaceData) || $atmosphere != $currentBodySurfaceData['atmosphereType'])
+                        if(!array_key_exists('atmosphereType', $currentBodyData) || $atmosphere != $currentBodyData['atmosphereType'])
                         {
                             $currentBodyNewSurfaceData['atmosphereType'] = $atmosphere;
                         }
@@ -374,11 +403,11 @@ class Body
                             \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Volcanism #' . $currentBody . ':' . $message['Volcanism']);
                         }
 
-                        if(is_null($currentBodySurfaceData) || $prefix != $currentBodySurfaceData['volcanismPrefix'])
+                        if(!array_key_exists('volcanismPrefix', $currentBodyData) || $prefix != $currentBodyData['volcanismPrefix'])
                         {
                             $currentBodyNewSurfaceData['volcanismPrefix'] = $prefix;
                         }
-                        if(is_null($currentBodySurfaceData) || $volcanism != $currentBodySurfaceData['volcanismType'])
+                        if(!array_key_exists('volcanismType', $currentBodyData) || $volcanism != $currentBodyData['volcanismType'])
                         {
                             $currentBodyNewSurfaceData['volcanismType'] = $volcanism;
                         }
@@ -397,7 +426,7 @@ class Body
 
                         if(!is_null($terraformState))
                         {
-                            if(is_null($currentBodySurfaceData) || $terraformState != $currentBodySurfaceData['terraformingState'])
+                            if(!array_key_exists('terraformingState', $currentBodyData) || $terraformState != $currentBodyData['terraformingState'])
                             {
                                 $currentBodyNewSurfaceData['terraformingState'] = $terraformState;
                             }
@@ -410,87 +439,59 @@ class Body
                 }
 
                 // Orbital variables
-                if(array_key_exists('RotationPeriod', $message) && (is_null($currentBodyOrbitalData) || $message['RotationPeriod'] != $currentBodyOrbitalData['rotationalPeriod']))
+                if(array_key_exists('RotationPeriod', $message) && (!array_key_exists('rotationalPeriod', $currentBodyData) || $message['RotationPeriod'] != $currentBodyData['rotationalPeriod']))
                 {
                     $currentBodyNewOrbitalData['rotationalPeriod'] = $message['RotationPeriod'];
                 }
-                if(array_key_exists('SemiMajorAxis', $message) && (is_null($currentBodyOrbitalData) || $message['SemiMajorAxis'] != $currentBodyOrbitalData['semiMajorAxis']))
+                if(array_key_exists('SemiMajorAxis', $message) && (!array_key_exists('semiMajorAxis', $currentBodyData) || $message['SemiMajorAxis'] != $currentBodyData['semiMajorAxis']))
                 {
                     $currentBodyNewOrbitalData['semiMajorAxis'] = $message['SemiMajorAxis'];
                 }
-                if(array_key_exists('Eccentricity', $message) && (is_null($currentBodyOrbitalData) || $message['Eccentricity'] != $currentBodyOrbitalData['orbitalEccentricity']))
+                if(array_key_exists('Eccentricity', $message) && (!array_key_exists('orbitalEccentricity', $currentBodyData) || $message['Eccentricity'] != $currentBodyData['orbitalEccentricity']))
                 {
                     $currentBodyNewOrbitalData['orbitalEccentricity'] = $message['Eccentricity'];
                 }
-                if(array_key_exists('OrbitalInclination', $message) && (is_null($currentBodyOrbitalData) || $message['OrbitalInclination'] != $currentBodyOrbitalData['orbitalInclination']))
+                if(array_key_exists('OrbitalInclination', $message) && (!array_key_exists('orbitalInclination', $currentBodyData) || $message['OrbitalInclination'] != $currentBodyData['orbitalInclination']))
                 {
                     $currentBodyNewOrbitalData['orbitalInclination'] = $message['OrbitalInclination'];
                 }
-                if(array_key_exists('Periapsis', $message) && (is_null($currentBodyOrbitalData) || $message['Periapsis'] != $currentBodyOrbitalData['argOfPeriapsis']))
+                if(array_key_exists('Periapsis', $message) && (!array_key_exists('argOfPeriapsis', $currentBodyData) || $message['Periapsis'] != $currentBodyData['argOfPeriapsis']))
                 {
                     $currentBodyNewOrbitalData['argOfPeriapsis'] = $message['Periapsis'];
                 }
-                if(array_key_exists('OrbitalPeriod', $message) && (is_null($currentBodyOrbitalData) || $message['OrbitalPeriod'] != $currentBodyOrbitalData['orbitalPeriod']))
+                if(array_key_exists('OrbitalPeriod', $message) && (!array_key_exists('orbitalPeriod', $currentBodyData) || $message['OrbitalPeriod'] != $currentBodyData['orbitalPeriod']))
                 {
                     $currentBodyNewOrbitalData['orbitalPeriod'] = $message['OrbitalPeriod'];
                 }
-                if(array_key_exists('AxialTilt', $message) && (is_null($currentBodyOrbitalData) || $message['AxialTilt'] != $currentBodyOrbitalData['axisTilt']))
+                if(array_key_exists('AxialTilt', $message) && (!array_key_exists('axisTilt', $currentBodyData) || $message['AxialTilt'] != $currentBodyData['axisTilt']))
                 {
                     $currentBodyNewOrbitalData['axisTilt'] = $message['AxialTilt'];
                 }
 
-                // Reserve Level
-                if(array_key_exists('ReserveLevel', $message))
-                {
-                    $reserveLevel = ReserveLevel::getFromFd($message['ReserveLevel']);
-
-                    if(!is_null($reserveLevel))
-                    {
-                        if($currentBodyData['reserveLevel'] != $reserveLevel)
-                        {
-                            $currentBodyNewData['reserveLevel'] = $reserveLevel;
-                        }
-                    }
-                    else
-                    {
-                        \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\ReserveLevel #' . $currentBody . ':' . $message['ReserveLevel']);
-                    }
-                }
-
                 // Do we need to update the record?
-                if(count($currentBodyNewData) > 0)
+                if(count($currentBodyNewData) > 0 || count($currentBodyNewOrbitalData) > 0 || count($currentBodyNewSurfaceData) > 0 || count($currentBodyNewParentsData) > 0)
                 {
-                    if(strtotime($message['timestamp']) > strtotime($currentBodyData['dateUpdated']))
-                    {
-                        $currentBodyNewData['dateUpdated'] = $message['timestamp'];
-                    }
-
-                    $systemsBodiesModel->updateById(
-                        $currentBody,
-                        $currentBodyNewData
-                    );
+                    $currentBodyNewData['dateUpdated'] = $message['timestamp'];
+                    $systemsBodiesModel->updateById($currentBody, $currentBodyNewData); // Always update to keep track of last update
 
                     if($useLogger === true)
                     {
                         \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated.');
                     }
-                }
 
-                if(count($currentBodyNewOrbitalData) > 0)
-                {
-                    if(is_null($currentBodyOrbitalData))
+                    if(count($currentBodyNewOrbitalData) > 0)
                     {
-                        $currentBodyNewOrbitalData['refBody'] = $currentBody;
-
                         try
                         {
+                            $currentBodyNewOrbitalData['refBody'] = $currentBody;
                             $systemsBodiesOrbitalModel->insert($currentBodyNewOrbitalData);
                         }
                         catch(\Zend_Db_Exception $e)
                         {
                             if(strpos($e->getMessage(), '1062 Duplicate') !== false)
                             {
-                                // Do nothing, and expect the other message to have done his job!
+                                unset($currentBodyNewParentsData['refBody']);
+                                $systemsBodiesOrbitalModel->updateByRefBody($currentBody, $currentBodyNewOrbitalData);
                             }
                             else
                             {
@@ -504,27 +505,20 @@ class Body
                             }
                         }
                     }
-                    else
-                    {
-                        $systemsBodiesOrbitalModel->updateByRefBody($currentBody, $currentBodyNewOrbitalData);
-                    }
-                }
 
-                if(count($currentBodyNewSurfaceData) > 0)
-                {
-                    if(is_null($currentBodySurfaceData))
+                    if(count($currentBodyNewSurfaceData) > 0)
                     {
-                        $currentBodyNewSurfaceData['refBody'] = $currentBody;
-
                         try
                         {
+                            $currentBodyNewSurfaceData['refBody'] = $currentBody;
                             $systemsBodiesSurfaceModel->insert($currentBodyNewSurfaceData);
                         }
                         catch(\Zend_Db_Exception $e)
                         {
                             if(strpos($e->getMessage(), '1062 Duplicate') !== false)
                             {
-                                // Do nothing, and expect the other message to have done his job!
+                                unset($currentBodyNewParentsData['refBody']);
+                                $systemsBodiesSurfaceModel->updateByRefBody($currentBody, $currentBodyNewSurfaceData);
                             }
                             else
                             {
@@ -538,27 +532,20 @@ class Body
                             }
                         }
                     }
-                    else
-                    {
-                        $systemsBodiesSurfaceModel->updateByRefBody($currentBody, $currentBodyNewSurfaceData);
-                    }
-                }
 
-                if(count($currentBodyNewParentsData) > 0)
-                {
-                    if(is_null($currentBodyParentsData))
+                    if(count($currentBodyNewParentsData) > 0)
                     {
-                        $currentBodyNewParentsData['refBody'] = $currentBody;
-
                         try
                         {
+                            $currentBodyNewParentsData['refBody'] = $currentBody;
                             $systemsBodiesParentsModel->insert($currentBodyNewParentsData);
                         }
                         catch(\Zend_Db_Exception $e)
                         {
                             if(strpos($e->getMessage(), '1062 Duplicate') !== false)
                             {
-                                // Do nothing, and expect the other message to have done his job!
+                                unset($currentBodyNewParentsData['refBody']);
+                                $systemsBodiesParentsModel->updateByRefBody($currentBody, $currentBodyNewParentsData);
                             }
                             else
                             {
@@ -571,10 +558,6 @@ class Body
                                 }
                             }
                         }
-                    }
-                    else
-                    {
-                        $systemsBodiesParentsModel->updateByRefBody($currentBody, $currentBodyNewParentsData);
                     }
                 }
 
