@@ -471,8 +471,11 @@ class Body
                 // Do we need to update the record?
                 if(count($currentBodyNewData) > 0 || count($currentBodyNewOrbitalData) > 0 || count($currentBodyNewSurfaceData) > 0 || count($currentBodyNewParentsData) > 0)
                 {
-                    $currentBodyNewData['dateUpdated'] = $message['timestamp'];
-                    $systemsBodiesModel->updateById($currentBody, $currentBodyNewData); // Always update to keep track of last update
+                    $currentBodyNewData['dateUpdated']  = $message['timestamp'];
+                    $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+
+                    // Always update to keep track of last update
+                    $systemsBodiesModel->updateById($currentBody, $currentBodyNewData);
 
                     if($useLogger === true)
                     {
@@ -490,7 +493,7 @@ class Body
                         {
                             if(strpos($e->getMessage(), '1062 Duplicate') !== false)
                             {
-                                unset($currentBodyNewParentsData['refBody']);
+                                unset($currentBodyNewOrbitalData['refBody']);
                                 $systemsBodiesOrbitalModel->updateByRefBody($currentBody, $currentBodyNewOrbitalData);
                             }
                             else
@@ -517,7 +520,7 @@ class Body
                         {
                             if(strpos($e->getMessage(), '1062 Duplicate') !== false)
                             {
-                                unset($currentBodyNewParentsData['refBody']);
+                                unset($currentBodyNewSurfaceData['refBody']);
                                 $systemsBodiesSurfaceModel->updateByRefBody($currentBody, $currentBodyNewSurfaceData);
                             }
                             else

@@ -39,7 +39,7 @@ class Outfittings
 
                         if(is_null($outfittingId))
                         {
-                            \EDSM_Api_Logger_Alias::log('Alias\Station\Outfitting\Type #' . $currentStation->getId() . ':' . $outfitting);
+                            \EDSM_Api_Logger_Alias::log('Alias\Station\Outfitting\Type:' . $outfitting);
                         }
                         else
                         {

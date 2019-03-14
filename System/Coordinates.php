@@ -94,6 +94,15 @@ class Coordinates
                 {
                     $insert['id64'] = $message['SystemAddress'];
                 }
+                else
+                {
+                    // Generate the PG systemAdress (Old journal, Console users, cAPI)
+                    $id64 = \Component\System::calculateId64FromName($systemName);
+                    if(!is_null($id64))
+                    {
+                        $insert['id64'] = $id64;
+                    }
+                }
 
                 $systemsModel->insert($insert);
 

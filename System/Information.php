@@ -35,7 +35,7 @@ class Information
                     }
                     else
                     {
-                        $id64 = $currentSystem->getId64FromEDTS();
+                        $id64 = $currentSystem->calculateId64();
                     }
 
                     if(!is_null($id64))
@@ -105,7 +105,7 @@ class Information
                     {
                         $message['FactionState']    = $message['SystemFaction']['FactionState'];
                     }
-                    
+
                     $message['SystemFaction']   = $message['SystemFaction']['Name'];
                 }
 

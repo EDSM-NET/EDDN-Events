@@ -34,7 +34,9 @@ class Coordinates
             if(!is_null($station))
             {
                 $station = $stationsModel->getById($station['id']);
+                $update  = array();
 
+                // Save megaship systems history if moved
                 if($station['refSystem'] != $currentSystem->getId() && in_array($station['type'], array(12, 21)))
                 {
                     // Add old system to history
@@ -49,15 +51,21 @@ class Coordinates
 
                     $systemsHistory[time()] = $station['refSystem'];
 
-                    // Update system
-                    $stationsModel->updateById(
-                        $station['id'],
-                        array(
-                            'refSystem'         => $currentSystem->getId(),
-                            'systemsHistory'    => \Zend_Json::encode($systemsHistory),
-                            'refBody'           => new \Zend_Db_Expr('NULL'),
-                        )
-                    );
+                    $update['refSystem']        = $currentSystem->getId();
+                    $update['systemsHistory']   = \Zend_Json::encode($systemsHistory);
+                    $update['refBody']          = new \Zend_Db_Expr('NULL');
+                }
+
+                // Rescue ship changed name?
+                if(array_key_exists('StationName', $message) && $message['StationName'] != $station['name'])
+                {
+                    $update['name'] = $message['StationName'];
+                }
+
+                if(count($update) > 0)
+                {
+                    // Update system/name
+                    $stationsModel->updateById($station['id'], $update);
                 }
 
                 return $station['id'];
