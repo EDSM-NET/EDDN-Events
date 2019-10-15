@@ -351,6 +351,12 @@ class Information
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Economy (2)    : ' . Economy::get($newInformation['secondEconomy']));
                 }
             }
+            else
+            {
+                $stationsModel                  = new \Models_Stations;
+                $newInformation['updateTime']   = $message['timestamp'];
+                $stationsModel->updateById($currentStation->getId(), $newInformation);
+            }
         }
     }
 }

@@ -22,7 +22,13 @@ class Body
 {
     static public function handle($systemId, $message, $useLogger = true)
     {
-        $currentSystem = \Component\System::getInstance($systemId);
+        $wasInserted    = false;
+        $currentSystem  = \Component\System::getInstance($systemId);
+
+        if($message['BodyName'] == 'Athaip QP-E d12-9178 6')
+        {
+            $message['BodyName'] = 'Jasmine\'s Playground';
+        }
 
         if($currentSystem->isValid() && $currentSystem->isHidden() === false)
         {
@@ -64,7 +70,7 @@ class Body
                             $currentBodyData    = $systemsBodiesModel->getById($currentBody);
 
                             // Discard older message...
-                            if(strtotime($message['timestamp']) <= strtotime($currentBodyData['dateUpdated']))
+                            if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateUpdated']))
                             {
                                 return $currentBody;
                             }
@@ -113,7 +119,7 @@ class Body
                             if($useLogger === true)
                             {
                                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') inserted.');
-                                $useLogger = false;
+                                $wasInserted = true;
                             }
                         }
                         catch(\Zend_Db_Exception $e)
@@ -468,6 +474,495 @@ class Body
                     $currentBodyNewOrbitalData['axisTilt'] = $message['AxialTilt'];
                 }
 
+                // Atmosphere composition
+                if(array_key_exists('AtmosphereComposition', $message) && count($message['AtmosphereComposition']) > 0)
+                {
+                    $systemsBodiesAtmosphereCompositionModel    = new \Models_Systems_Bodies_AtmosphereComposition;
+                    $oldComposition                             = $systemsBodiesAtmosphereCompositionModel->getByRefBody($currentBody);
+                    $composition                                = array();
+
+                    foreach($message['AtmosphereComposition'] AS $component)
+                    {
+                        $componentType = AtmosphereComposition::getFromFd($component['Name']);
+
+                        if(is_null($componentType))
+                        {
+                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\AtmosphereComposition #' . $currentBody . ':' . $component['Name']);
+                        }
+                        else
+                        {
+                            $composition[$componentType] = $component['Percent'];
+                        }
+                    }
+
+                    foreach($composition AS $type => $qty)
+                    {
+                        $oldComponent   = null;
+                        $qty            = round($qty * 100);
+
+                        foreach($oldComposition AS $key => $values)
+                        {
+                            if($values['refComposition'] == $type)
+                            {
+                                unset($oldComposition[$key]);
+                                $oldComponent = $values;
+                                break;
+                            }
+                        }
+
+                        // Update QTY if composition was already stored
+                        if(!is_null($oldComponent))
+                        {
+                            if($oldComponent['percent'] != $qty)
+                            {
+                                $systemsBodiesAtmosphereCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
+                                    'percent'       => $qty,
+                                ));
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                        }
+                        // Insert new composition
+                        else
+                        {
+                            try
+                            {
+                                $systemsBodiesAtmosphereCompositionModel->insert(array(
+                                    'refBody'           => $currentBody,
+                                    'refComposition'    => $type,
+                                    'percent'           => $qty,
+                                ));
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                            catch(\Zend_Db_Exception $e)
+                            {
+                                // Based on unique index, this entry was already saved.
+                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
+                                {
+
+                                }
+                                else
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Remove remaining composition
+                    if(count($oldComposition) > 0)
+                    {
+                        foreach($oldComposition AS $values)
+                        {
+                            $systemsBodiesAtmosphereCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    unset($composition, $oldComposition);
+                }
+                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
+                {
+                    $systemsBodiesAtmosphereCompositionModel    = new \Models_Systems_Bodies_AtmosphereComposition;
+                    $oldComposition                             = $systemsBodiesAtmosphereCompositionModel->getByRefBody($currentBody);
+
+                    if(is_null($oldComposition) || count($oldComposition) == 0)
+                    {
+                        $systemsBodiesAtmosphereCompositionModel->deleteByRefBody($currentBody);
+                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                    }
+                }
+
+                // Solid composition
+                if(array_key_exists('Composition', $message) && count($message['Composition']) > 0)
+                {
+                    $systemsBodiesSolidCompositionModel         = new \Models_Systems_Bodies_SolidComposition;
+                    $oldComposition                             = $systemsBodiesSolidCompositionModel->getByRefBody($currentBody);
+                    $composition                                = array();
+
+                    foreach($message['Composition'] AS $component => $qty)
+                    {
+                        $componentType = SolidComposition::getFromFd($component);
+
+                        if(is_null($componentType))
+                        {
+                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\SolidComposition #' . $currentBody . ':' . $component);
+                        }
+                        else
+                        {
+                            $composition[$componentType] = $qty;
+                        }
+                    }
+
+                    foreach($composition AS $type => $qty)
+                    {
+                        $oldComponent   = null;
+                        $qty            = round($qty * 10000);
+
+                        foreach($oldComposition AS $key => $values)
+                        {
+                            if($values['refComposition'] == $type)
+                            {
+                                unset($oldComposition[$key]);
+                                $oldComponent = $values;
+                                break;
+                            }
+                        }
+
+                        // Update QTY if composition was already stored
+                        if(!is_null($oldComponent))
+                        {
+                            if($oldComponent['percent'] != $qty)
+                            {
+                                $systemsBodiesSolidCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
+                                    'percent'       => $qty,
+                                ));
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                        }
+                        // Insert new composition
+                        else
+                        {
+                            try
+                            {
+                                $systemsBodiesSolidCompositionModel->insert(array(
+                                    'refBody'           => $currentBody,
+                                    'refComposition'    => $type,
+                                    'percent'           => $qty,
+                                ));
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                            catch(\Zend_Db_Exception $e)
+                            {
+                                // Based on unique index, this entry was already saved.
+                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
+                                {
+
+                                }
+                                else
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Remove remaining composition
+                    if(count($oldComposition) > 0)
+                    {
+                        foreach($oldComposition AS $values)
+                        {
+                            $systemsBodiesSolidCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    unset($composition, $oldComposition);
+                }
+                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
+                {
+                    $systemsBodiesSolidCompositionModel         = new \Models_Systems_Bodies_SolidComposition;
+                    $oldComposition                             = $systemsBodiesSolidCompositionModel->getByRefBody($currentBody);
+
+                    if(is_null($oldComposition) || count($oldComposition) == 0)
+                    {
+                        $systemsBodiesSolidCompositionModel->deleteByRefBody($currentBody);
+                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                    }
+                }
+
+                // Materials
+                if(array_key_exists('Materials', $message) && count($message['Materials']) > 0)
+                {
+                    // Convert old 2.2 to 2.3 format
+                    if(!is_array(array_values($message['Materials'])[0])) // array_values ensure the first key is numeric
+                    {
+                        $tempMaterials = array();
+
+                        foreach($message['Materials'] AS $key => $value)
+                        {
+                            $tempMaterials[] = array(
+                                'Name'      => $key,
+                                'Percent'   => $value,
+                            );
+                        }
+
+                        $message['Materials'] = $tempMaterials;
+                    }
+
+                    $systemsBodiesMaterialsModel    = new \Models_Systems_Bodies_Materials;
+                    $oldMaterials                   = $systemsBodiesMaterialsModel->getByRefBody($currentBody);
+                    $materials                      = array();
+
+                    foreach($message['Materials'] AS $material)
+                    {
+                        $materialType = Material::getFromFd($material['Name']);
+
+                        if(is_null($materialType))
+                        {
+                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Material #' . $currentBody . ':' . $material['Name']);
+                        }
+                        else
+                        {
+                            $materials[$materialType] = $material['Percent'];
+                        }
+                    }
+
+                    foreach($materials AS $type => $qty)
+                    {
+                        $oldMaterial    = null;
+                        $qty            = round($qty * 100);
+
+                        foreach($oldMaterials AS $key => $values)
+                        {
+                            if($values['refMaterial'] == $type)
+                            {
+                                unset($oldMaterials[$key]);
+                                $oldMaterial = $values;
+                                break;
+                            }
+                        }
+
+                        // Update QTY if materials was already stored
+                        if(!is_null($oldMaterial))
+                        {
+                            if($oldMaterial['percent'] != $qty)
+                            {
+                                $systemsBodiesMaterialsModel->updateByRefBodyAndRefMaterial($currentBody, $oldMaterial['refMaterial'], array(
+                                    'percent'       => $qty,
+                                ));
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                        }
+                        // Insert new material
+                        else
+                        {
+                            try
+                            {
+                                $systemsBodiesMaterialsModel->insert(array(
+                                    'refBody'       => $currentBody,
+                                    'refMaterial'   => $type,
+                                    'percent'       => $qty,
+                                ));
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                            catch(\Zend_Db_Exception $e)
+                            {
+                                // Based on unique index, this entry was already saved.
+                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
+                                {
+
+                                }
+                                else
+                                {
+                                    $registry = \Zend_Registry::getInstance();
+
+                                    if($registry->offsetExists('sentryClient'))
+                                    {
+                                        $sentryClient = $registry->offsetGet('sentryClient');
+                                        $sentryClient->captureException($e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Remove remaining material
+                    if(count($oldMaterials) > 0)
+                    {
+                        foreach($oldMaterials AS $values)
+                        {
+                            $systemsBodiesMaterialsModel->deleteByRefBodyAndRefMaterial($currentBody, $values['refMaterial']);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    unset($materials);
+                }
+                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
+                {
+                    $systemsBodiesMaterialsModel    = new \Models_Systems_Bodies_Materials;
+                    $oldMaterials                   = $systemsBodiesMaterialsModel->getByRefBody($currentBody);
+
+                    if(is_null($oldMaterials) || count($oldMaterials) == 0)
+                    {
+                        $systemsBodiesMaterialsModel->deleteByRefBody($currentBody);
+                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                    }
+                }
+
+                // Rings
+                if(array_key_exists('Rings', $message) && count($message['Rings']) > 0)
+                {
+                    $systemsBodiesBeltsModel        = new \Models_Systems_Bodies_Belts;
+                    $systemsBodiesRingsModel        = new \Models_Systems_Bodies_Rings;
+                    $oldBelts                       = $systemsBodiesBeltsModel->getByRefBody($currentBody);
+                    $oldRings                       = $systemsBodiesRingsModel->getByRefBody($currentBody);
+                    $belts                          = array();
+                    $rings                          = array();
+
+                    foreach($message['Rings'] AS $ring)
+                    {
+                        $ringType = RingType::getFromFd($ring['RingClass']);
+
+                        if(is_null($ringType))
+                        {
+                            \EDSM_Api_Logger_Alias::log('Alias\Body\Ring\Type #' . $currentBody . ':' . $ring['RingClass']);
+                        }
+                        else
+                        {
+                            $ring = array(
+                                'refBody'   => $currentBody,
+                                'type'      => $ringType,
+                                'name'      => $ring['Name'],
+                                'mass'      => $ring['MassMT'],
+                                'iRad'      => $ring['InnerRad'],
+                                'oRad'      => $ring['OuterRad'],
+                            );
+
+                            //TODO: Handle Belt alias for insertion
+                            if(stripos($ring['name'], 'ring') !== false || in_array(substr($ring['name'], -3), array(' r1', ' r2', ' r3', ' r4', ' r5')))
+                            {
+                                $rings[] = $ring;
+                            }
+                            elseif(stripos($ring['name'], 'belt') !== false)
+                            {
+                                $belts[] = $ring;
+                            }
+                            else
+                            {
+                                \EDSM_Api_Logger_Alias::log('Unknown ring type? #' . $currentBody . ':' . $ring['name']);
+                            }
+                        }
+                    }
+
+                    foreach($belts AS $belt)
+                    {
+                        $oldBelt = null;
+
+                        foreach($oldBelts AS $key => $values)
+                        {
+                            if($values['name'] == $belt['name'])
+                            {
+                                unset($oldBelts[$key]);
+                                $oldBelt = $values;
+                                break;
+                            }
+                        }
+
+                        // Update if belt was already stored
+                        if(!is_null($oldBelt))
+                        {
+                            if(
+                                   $oldBelt['type'] != $belt['type']
+                                || $oldBelt['name'] != $belt['name']
+                                || $oldBelt['mass'] != $belt['mass']
+                                || $oldBelt['iRad'] != $belt['iRad']
+                                || $oldBelt['oRad'] != $belt['oRad']
+                            )
+                            {
+                                $systemsBodiesBeltsModel->updateById($oldBelt['id'], $belt);
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                        }
+                        // Insert new belt
+                        else
+                        {
+                            $systemsBodiesBeltsModel->insert($belt);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    foreach($rings AS $ring)
+                    {
+                        $oldRing = null;
+
+                        foreach($oldRings AS $key => $values)
+                        {
+                            if($values['name'] == $ring['name'])
+                            {
+                                unset($oldRings[$key]);
+                                $oldRing = $values;
+                                break;
+                            }
+                        }
+
+                        // Update if ring was already stored
+                        if(!is_null($oldRing))
+                        {
+                            if(
+                                   $oldRing['type'] != $ring['type']
+                                || $oldRing['name'] != $ring['name']
+                                || $oldRing['mass'] != $ring['mass']
+                                || $oldRing['iRad'] != $ring['iRad']
+                                || $oldRing['oRad'] != $ring['oRad']
+                            )
+                            {
+                                $systemsBodiesRingsModel->updateById($oldRing['id'], $ring);
+                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            }
+                        }
+                        // Insert new belt
+                        else
+                        {
+                            $systemsBodiesRingsModel->insert($ring);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    // Remove remaining belts
+                    if(count($oldBelts) > 0)
+                    {
+                        foreach($oldBelts AS $values)
+                        {
+                            $systemsBodiesBeltsModel->deleteById($values['id']);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    // Remove remaining rings
+                    if(count($oldRings) > 0)
+                    {
+                        foreach($oldRings AS $values)
+                        {
+                            $systemsBodiesRingsModel->deleteById($values['id']);
+                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        }
+                    }
+
+                    unset($belts, $rings);
+                }
+                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
+                {
+                    $systemsBodiesBeltsModel        = new \Models_Systems_Bodies_Belts;
+                    $systemsBodiesRingsModel        = new \Models_Systems_Bodies_Rings;
+                    $oldBelts                       = $systemsBodiesBeltsModel->getByRefBody($currentBody);
+                    $oldRings                       = $systemsBodiesRingsModel->getByRefBody($currentBody);
+
+                    if(is_null($oldBelts) || count($oldBelts) == 0)
+                    {
+                        $systemsBodiesBeltsModel->deleteByRefBody($currentBody);
+                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                    }
+
+                    if(is_null($oldRings) || count($oldRings) == 0)
+                    {
+                        $systemsBodiesRingsModel->deleteByRefBody($currentBody);
+                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                    }
+                }
+
                 // Do we need to update the record?
                 if(count($currentBodyNewData) > 0 || count($currentBodyNewOrbitalData) > 0 || count($currentBodyNewSurfaceData) > 0 || count($currentBodyNewParentsData) > 0)
                 {
@@ -477,7 +972,7 @@ class Body
                     // Always update to keep track of last update
                     $systemsBodiesModel->updateById($currentBody, $currentBodyNewData);
 
-                    if($useLogger === true)
+                    if($useLogger === true && $wasInserted === false)
                     {
                         \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated.');
                     }
@@ -562,451 +1057,21 @@ class Body
                             }
                         }
                     }
-                }
 
-                // Atmosphere composition
-                if(array_key_exists('AtmosphereComposition', $message) && count($message['AtmosphereComposition']) > 0)
-                {
-                    $systemsBodiesAtmosphereCompositionModel    = new \Models_Systems_Bodies_AtmosphereComposition;
-                    $oldComposition                             = $systemsBodiesAtmosphereCompositionModel->getByRefBody($currentBody);
-                    $composition                                = array();
-
-                    foreach($message['AtmosphereComposition'] AS $component)
+                    // Update Elastic! (Only if coming from EDDN...)
+                    if($useLogger === true)
                     {
-                        $componentType = AtmosphereComposition::getFromFd($component['Name']);
+                        $return = \Process\Body\Elastic::insertBody($currentBody);
 
-                        if(is_null($componentType))
+                        if($return === true)
                         {
-                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\AtmosphereComposition #' . $currentBody . ':' . $component['Name']);
+                            //\EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated in Elastic index.');
                         }
                         else
                         {
-                            $composition[$componentType] = $component['Percent'];
+                            \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               <span class="text-danger">' . $message['BodyName'] . ' (#' . $currentBody . ') failed updating in Elastic index.</span>');
                         }
                     }
-
-                    foreach($composition AS $type => $qty)
-                    {
-                        $oldComponent   = null;
-                        $qty            = round($qty * 100);
-
-                        foreach($oldComposition AS $key => $values)
-                        {
-                            if($values['refComposition'] == $type)
-                            {
-                                unset($oldComposition[$key]);
-                                $oldComponent = $values;
-                                break;
-                            }
-                        }
-
-                        // Update QTY if composition was already stored
-                        if(!is_null($oldComponent))
-                        {
-                            if($oldComponent['percent'] != $qty)
-                            {
-                                $systemsBodiesAtmosphereCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
-                                    'percent'       => $qty,
-                                ));
-                            }
-                        }
-                        // Insert new composition
-                        else
-                        {
-                            try
-                            {
-                                $systemsBodiesAtmosphereCompositionModel->insert(array(
-                                    'refBody'           => $currentBody,
-                                    'refComposition'    => $type,
-                                    'percent'           => $qty,
-                                ));
-                            }
-                            catch(\Zend_Db_Exception $e)
-                            {
-                                // Based on unique index, this entry was already saved.
-                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
-                                {
-
-                                }
-                                else
-                                {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
-                                    {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Remove remaining composition
-                    if(count($oldComposition) > 0)
-                    {
-                        foreach($oldComposition AS $values)
-                        {
-                            $systemsBodiesAtmosphereCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
-                        }
-                    }
-
-                    unset($composition, $oldComposition);
-                }
-                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
-                {
-                    $systemsBodiesAtmosphereCompositionModel = new \Models_Systems_Bodies_AtmosphereComposition;
-                    $systemsBodiesAtmosphereCompositionModel->deleteByRefBody($currentBody);
-                }
-
-                // Solid composition
-                if(array_key_exists('Composition', $message) && count($message['Composition']) > 0)
-                {
-                    $systemsBodiesSolidCompositionModel         = new \Models_Systems_Bodies_SolidComposition;
-                    $oldComposition                             = $systemsBodiesSolidCompositionModel->getByRefBody($currentBody);
-                    $composition                                = array();
-
-                    foreach($message['Composition'] AS $component => $qty)
-                    {
-                        $componentType = SolidComposition::getFromFd($component);
-
-                        if(is_null($componentType))
-                        {
-                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\SolidComposition #' . $currentBody . ':' . $component);
-                        }
-                        else
-                        {
-                            $composition[$componentType] = $qty;
-                        }
-                    }
-
-                    foreach($composition AS $type => $qty)
-                    {
-                        $oldComponent   = null;
-                        $qty            = round($qty * 10000);
-
-                        foreach($oldComposition AS $key => $values)
-                        {
-                            if($values['refComposition'] == $type)
-                            {
-                                unset($oldComposition[$key]);
-                                $oldComponent = $values;
-                                break;
-                            }
-                        }
-
-                        // Update QTY if composition was already stored
-                        if(!is_null($oldComponent))
-                        {
-                            if($oldComponent['percent'] != $qty)
-                            {
-                                $systemsBodiesSolidCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
-                                    'percent'       => $qty,
-                                ));
-                            }
-                        }
-                        // Insert new composition
-                        else
-                        {
-                            try
-                            {
-                                $systemsBodiesSolidCompositionModel->insert(array(
-                                    'refBody'           => $currentBody,
-                                    'refComposition'    => $type,
-                                    'percent'           => $qty,
-                                ));
-                            }
-                            catch(\Zend_Db_Exception $e)
-                            {
-                                // Based on unique index, this entry was already saved.
-                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
-                                {
-
-                                }
-                                else
-                                {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
-                                    {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Remove remaining composition
-                    if(count($oldComposition) > 0)
-                    {
-                        foreach($oldComposition AS $values)
-                        {
-                            $systemsBodiesSolidCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
-                        }
-                    }
-
-                    unset($composition, $oldComposition);
-                }
-                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
-                {
-                    $systemsBodiesSolidCompositionModel = new \Models_Systems_Bodies_SolidComposition;
-                    $systemsBodiesSolidCompositionModel->deleteByRefBody($currentBody);
-                }
-
-                // Materials
-                if(array_key_exists('Materials', $message) && count($message['Materials']) > 0)
-                {
-                    // Convert old 2.2 to 2.3 format
-                    if(!is_array(array_values($message['Materials'])[0])) // array_values ensure the first key is numeric
-                    {
-                        $tempMaterials = array();
-
-                        foreach($message['Materials'] AS $key => $value)
-                        {
-                            $tempMaterials[] = array(
-                                'Name'      => $key,
-                                'Percent'   => $value,
-                            );
-                        }
-
-                        $message['Materials'] = $tempMaterials;
-                    }
-
-                    $systemsBodiesMaterialsModel    = new \Models_Systems_Bodies_Materials;
-                    $oldMaterials                   = $systemsBodiesMaterialsModel->getByRefBody($currentBody);
-                    $materials                      = array();
-
-                    foreach($message['Materials'] AS $material)
-                    {
-                        $materialType = Material::getFromFd($material['Name']);
-
-                        if(is_null($materialType))
-                        {
-                            \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Material #' . $currentBody . ':' . $material['Name']);
-                        }
-                        else
-                        {
-                            $materials[$materialType] = $material['Percent'];
-                        }
-                    }
-
-                    foreach($materials AS $type => $qty)
-                    {
-                        $oldMaterial    = null;
-                        $qty            = round($qty * 100);
-
-                        foreach($oldMaterials AS $key => $values)
-                        {
-                            if($values['refMaterial'] == $type)
-                            {
-                                unset($oldMaterials[$key]);
-                                $oldMaterial = $values;
-                                break;
-                            }
-                        }
-
-                        // Update QTY if materials was already stored
-                        if(!is_null($oldMaterial))
-                        {
-                            if($oldMaterial['percent'] != $qty)
-                            {
-                                $systemsBodiesMaterialsModel->updateByRefBodyAndRefMaterial($currentBody, $oldMaterial['refMaterial'], array(
-                                    'percent'       => $qty,
-                                ));
-                            }
-                        }
-                        // Insert new material
-                        else
-                        {
-                            try
-                            {
-                                $systemsBodiesMaterialsModel->insert(array(
-                                    'refBody'       => $currentBody,
-                                    'refMaterial'   => $type,
-                                    'percent'       => $qty,
-                                ));
-                            }
-                            catch(\Zend_Db_Exception $e)
-                            {
-                                // Based on unique index, this entry was already saved.
-                                if(strpos($e->getMessage(), '1062 Duplicate') !== false)
-                                {
-
-                                }
-                                else
-                                {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
-                                    {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Remove remaining material
-                    if(count($oldMaterials) > 0)
-                    {
-                        foreach($oldMaterials AS $values)
-                        {
-                            $systemsBodiesMaterialsModel->deleteByRefBodyAndRefMaterial($currentBody, $values['refMaterial']);
-                        }
-                    }
-
-                    unset($materials);
-                }
-                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
-                {
-
-                    $systemsBodiesMaterialsModel    = new \Models_Systems_Bodies_Materials;
-                    $systemsBodiesMaterialsModel->deleteByRefBody($currentBody);
-                }
-
-                // Rings
-                if(array_key_exists('Rings', $message) && count($message['Rings']) > 0)
-                {
-                    $systemsBodiesBeltsModel        = new \Models_Systems_Bodies_Belts;
-                    $systemsBodiesRingsModel        = new \Models_Systems_Bodies_Rings;
-                    $oldBelts                       = $systemsBodiesBeltsModel->getByRefBody($currentBody);
-                    $oldRings                       = $systemsBodiesRingsModel->getByRefBody($currentBody);
-                    $belts                          = array();
-                    $rings                          = array();
-
-                    foreach($message['Rings'] AS $ring)
-                    {
-                        $ringType = RingType::getFromFd($ring['RingClass']);
-
-                        if(is_null($ringType))
-                        {
-                            \EDSM_Api_Logger_Alias::log('Alias\Body\Ring\Type #' . $currentBody . ':' . $ring['RingClass']);
-                        }
-                        else
-                        {
-                            $ring = array(
-                                'refBody'   => $currentBody,
-                                'type'      => $ringType,
-                                'name'      => $ring['Name'],
-                                'mass'      => $ring['MassMT'],
-                                'iRad'      => $ring['InnerRad'],
-                                'oRad'      => $ring['OuterRad'],
-                            );
-
-                            //TODO: Handle Belt alias for insertion
-                            if(stripos($ring['name'], 'ring') !== false || in_array(substr($ring['name'], -3), array(' r1', ' r2', ' r3', ' r4', ' r5')))
-                            {
-                                $rings[] = $ring;
-                            }
-                            elseif(stripos($ring['name'], 'belt') !== false)
-                            {
-                                $belts[] = $ring;
-                            }
-                            else
-                            {
-                                \EDSM_Api_Logger_Alias::log('Unknown ring type? #' . $currentBody . ':' . $ring['name']);
-                            }
-                        }
-                    }
-
-                    foreach($belts AS $belt)
-                    {
-                        $oldBelt = null;
-
-                        foreach($oldBelts AS $key => $values)
-                        {
-                            if($values['name'] == $belt['name'])
-                            {
-                                unset($oldBelts[$key]);
-                                $oldBelt = $values;
-                                break;
-                            }
-                        }
-
-                        // Update if belt was already stored
-                        if(!is_null($oldBelt))
-                        {
-                            if(
-                                   $oldBelt['type'] != $belt['type']
-                                || $oldBelt['name'] != $belt['name']
-                                || $oldBelt['mass'] != $belt['mass']
-                                || $oldBelt['iRad'] != $belt['iRad']
-                                || $oldBelt['oRad'] != $belt['oRad']
-                            )
-                            {
-                                $systemsBodiesBeltsModel->updateById($oldBelt['id'], $belt);
-                            }
-                        }
-                        // Insert new belt
-                        else
-                        {
-                            $systemsBodiesBeltsModel->insert($belt);
-                        }
-                    }
-
-                    foreach($rings AS $ring)
-                    {
-                        $oldRing = null;
-
-                        foreach($oldRings AS $key => $values)
-                        {
-                            if($values['name'] == $ring['name'])
-                            {
-                                unset($oldRings[$key]);
-                                $oldRing = $values;
-                                break;
-                            }
-                        }
-
-                        // Update if ring was already stored
-                        if(!is_null($oldRing))
-                        {
-                            if(
-                                   $oldRing['type'] != $ring['type']
-                                || $oldRing['name'] != $ring['name']
-                                || $oldRing['mass'] != $ring['mass']
-                                || $oldRing['iRad'] != $ring['iRad']
-                                || $oldRing['oRad'] != $ring['oRad']
-                            )
-                            {
-                                $systemsBodiesRingsModel->updateById($oldRing['id'], $ring);
-                            }
-                        }
-                        // Insert new belt
-                        else
-                        {
-                            $systemsBodiesRingsModel->insert($ring);
-                        }
-                    }
-
-                    // Remove remaining belts
-                    if(count($oldBelts) > 0)
-                    {
-                        foreach($oldBelts AS $values)
-                        {
-                            $systemsBodiesBeltsModel->deleteById($values['id']);
-                        }
-                    }
-
-                    // Remove remaining rings
-                    if(count($oldRings) > 0)
-                    {
-                        foreach($oldRings AS $values)
-                        {
-                            $systemsBodiesRingsModel->deleteById($values['id']);
-                        }
-                    }
-
-                    unset($belts, $rings);
-                }
-                elseif(array_key_exists('ScanType', $message) && in_array($message['ScanType'], array('Detailed', 'NavBeaconDetail')))
-                {
-                    $systemsBodiesBeltsModel        = new \Models_Systems_Bodies_Belts;
-                    $systemsBodiesBeltsModel->deleteByRefBody($currentBody);
-                    $systemsBodiesRingsModel        = new \Models_Systems_Bodies_Rings;
-                    $systemsBodiesRingsModel->deleteByRefBody($currentBody);
                 }
 
                 return $currentBody;
