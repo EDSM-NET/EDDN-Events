@@ -64,7 +64,7 @@ class Body
                     foreach($systemBodies AS $currentSystemBody)
                     {
                         // Complete name format or just body part
-                        if(strtolower($currentSystemBody['name']) == strtolower($bodyName) || strtolower($currentSystemBody['name']) == strtolower($message['BodyName']))
+                        if(trim(strtolower($currentSystemBody['name'])) == strtolower($bodyName) || trim(strtolower($currentSystemBody['name'])) == strtolower($message['BodyName']))
                         {
                             $currentBody        = $currentSystemBody['id'];
                             $currentBodyData    = $systemsBodiesModel->getById($currentBody);
@@ -135,12 +135,12 @@ class Body
                                     foreach($systemBodies AS $currentSystemBody)
                                     {
                                         // Complete name format or just body part
-                                        if(strtolower($currentSystemBody['name']) == strtolower($bodyName) || strtolower($currentSystemBody['name']) == strtolower($message['BodyName']))
+                                        if(trim(strtolower($currentSystemBody['name'])) == strtolower($bodyName) || trim(strtolower($currentSystemBody['name'])) == strtolower($message['BodyName']))
                                         {
                                             $currentBody        = $currentSystemBody['id'];
                                             $currentBodyData    = $systemsBodiesModel->getById($currentBody);
 
-                                            if(strtotime($message['timestamp']) <= strtotime($currentBodyData['dateUpdated']))
+                                            if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateUpdated']))
                                             {
                                                 return $currentBody;
                                             }
@@ -188,7 +188,6 @@ class Body
                 $currentBodyNewParentsData  = array();
                 $currentBodyNewSurfaceData  = array();
                 $currentBodyNewOrbitalData  = array();
-
 
                 if(!array_key_exists('name', $currentBodyData) || $bodyName != $currentBodyData['name'])
                 {
