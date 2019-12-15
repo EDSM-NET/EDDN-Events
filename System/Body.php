@@ -106,6 +106,37 @@ class Body
                             'name'          => $bodyName,
                         );
 
+                        if(array_key_exists('StarType', $message))
+                        {
+                            $insert['group']    = 1;
+                            $starType           = StarType::getFromFd($message['StarType']);
+
+                            if(!is_null($starType))
+                            {
+                                $insert['type'] = $starType;
+                            }
+                            else
+                            {
+                                \EDSM_Api_Logger_Alias::log('Alias\Body\Star\Type #' . $currentBody . ':' . $message['StarType']);
+                                return false;
+                            }
+                        }
+                        elseif(array_key_exists('PlanetClass', $message))
+                        {
+                            $insert['group']    = 2;
+                            $planetType         = PlanetType::getFromFd($message['PlanetClass']);
+
+                            if(!is_null($planetType))
+                            {
+                                $insert['type'] = $planetType;
+                            }
+                            else
+                            {
+                                \EDSM_Api_Logger_Alias::log('Alias\Body\Planet\Type #' . $currentBody . ':' . $message['PlanetClass']);
+                                return false;
+                            }
+                        }
+
                         if(array_key_exists('BodyID', $message))
                         {
                             $insert['id64'] = $message['BodyID'];
