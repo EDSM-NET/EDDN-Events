@@ -299,12 +299,12 @@ class Information
                 }
             }
 
-            if(count($newInformation) > 0)
-            {
-                $stationsModel                  = new \Models_Stations;
-                $newInformation['updateTime']   = $message['timestamp'];
-                $stationsModel->updateById($currentStation->getId(), $newInformation);
+            $stationsModel                  = new \Models_Stations;
+            $newInformation['updateTime']   = $message['timestamp'];
+            $stationsModel->updateById($currentStation->getId(), $newInformation);
 
+            if(count($newInformation) > 1)
+            {
                 \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>       ' . $currentStation->getName() . ' (#' . $currentStation->getId() . ') updated information.');
 
                 if(array_key_exists('type', $newInformation))
@@ -350,12 +350,6 @@ class Information
                 {
                     \EDSM_Api_Logger::log('<span class="text-info">EDDN\Station\Information:</span>           - Economy (2)    : ' . Economy::get($newInformation['secondEconomy']));
                 }
-            }
-            else
-            {
-                $stationsModel                  = new \Models_Stations;
-                $newInformation['updateTime']   = $message['timestamp'];
-                $stationsModel->updateById($currentStation->getId(), $newInformation);
             }
         }
     }

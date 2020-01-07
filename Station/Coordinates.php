@@ -94,7 +94,7 @@ class Coordinates
 
         if($currentSystem->isValid() && $currentSystem->isHidden() === false && !empty($stationName))
         {
-            $stations       = $currentSystem->getStations();
+            $stations       = $currentSystem->getStations(true);
 
             if(count($stations) > 0)
             {
