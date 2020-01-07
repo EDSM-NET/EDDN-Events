@@ -66,13 +66,28 @@ class Body
                         // Complete name format or just body part
                         if(trim(strtolower($currentSystemBody['name'])) == strtolower($bodyName) || trim(strtolower($currentSystemBody['name'])) == strtolower($message['BodyName']))
                         {
-                            $currentBody        = $currentSystemBody['id'];
-                            $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+                            $currentBody = $currentSystemBody['id'];
 
-                            // Discard older message...
-                            if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateUpdated']))
+                            if(array_key_exists('dateUpdated', $currentSystemBody))
                             {
-                                return $currentBody;
+                                // Discard older message...
+                                if(strtotime($message['timestamp']) < strtotime($currentSystemBody['dateUpdated']))
+                                {
+                                    return $currentSystemBody['id'];
+                                }
+
+                                // Fill current data
+                                $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+                            }
+                            else
+                            {
+                                $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+
+                                // Discard older message...
+                                if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateUpdated']))
+                                {
+                                    return $currentSystemBody['id'];
+                                }
                             }
 
                             break;
@@ -168,12 +183,28 @@ class Body
                                         // Complete name format or just body part
                                         if(trim(strtolower($currentSystemBody['name'])) == strtolower($bodyName) || trim(strtolower($currentSystemBody['name'])) == strtolower($message['BodyName']))
                                         {
-                                            $currentBody        = $currentSystemBody['id'];
-                                            $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+                                            $currentBody = $currentSystemBody['id'];
 
-                                            if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateUpdated']))
+                                            if(array_key_exists('dateUpdated', $currentSystemBody))
                                             {
-                                                return $currentBody;
+                                                // Discard older message...
+                                                if(strtotime($message['timestamp']) < strtotime($currentSystemBody['dateUpdated']))
+                                                {
+                                                    return $currentSystemBody['id'];
+                                                }
+
+                                                // Fill current data
+                                                $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+                                            }
+                                            else
+                                            {
+                                                $currentBodyData    = $systemsBodiesModel->getById($currentBody);
+
+                                                // Discard older message...
+                                                if(strtotime($message['timestamp']) < strtotime($currentBodyData['dateUpdated']))
+                                                {
+                                                    return $currentSystemBody['id'];
+                                                }
                                             }
 
                                             break;
@@ -196,19 +227,7 @@ class Body
                     else
                     {
                         // Belt cluster are just useless, we rely on belts sent with the parent body!
-                        /*
-                        $registry = \Zend_Registry::getInstance();
-
-                        if($registry->offsetExists('sentryClient'))
-                        {
-                            $sentryClient = $registry->offsetGet('sentryClient');
-                            $sentryClient->captureMessage(
-                                'Belt Cluster',
-                                array('currentSystem' => $currentSystem),
-                                array('extra' => $message,)
-                            );
-                        }
-                        */
+                        return null;
                     }
                 }
             }
@@ -996,17 +1015,6 @@ class Body
                 // Do we need to update the record?
                 if(count($currentBodyNewData) > 0 || count($currentBodyNewOrbitalData) > 0 || count($currentBodyNewSurfaceData) > 0 || count($currentBodyNewParentsData) > 0)
                 {
-                    $currentBodyNewData['dateUpdated']  = $message['timestamp'];
-                    $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
-
-                    // Always update to keep track of last update
-                    $systemsBodiesModel->updateById($currentBody, $currentBodyNewData);
-
-                    if($useLogger === true && $wasInserted === false)
-                    {
-                        \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated.');
-                    }
-
                     if(count($currentBodyNewOrbitalData) > 0)
                     {
                         try
@@ -1086,6 +1094,17 @@ class Body
                                 }
                             }
                         }
+                    }
+
+                    $currentBodyNewData['dateUpdated']  = $message['timestamp'];
+                    $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+
+                    // Always update to keep track of last update
+                    $systemsBodiesModel->updateById($currentBody, $currentBodyNewData);
+
+                    if($useLogger === true && $wasInserted === false)
+                    {
+                        \EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated.');
                     }
 
                     // Update Elastic! (Only if coming from EDDN...)
