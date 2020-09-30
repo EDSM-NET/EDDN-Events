@@ -193,20 +193,24 @@ class Information
             {
                 $factionsModel  = new \Models_Factions;
                 $factionName    = trim($message['StationFaction']);
-                $factionId      = $factionsModel->getByName($factionName);
 
-                if(is_null($factionId))
+                if($factionName !== 'FleetCarrier')
                 {
-                    $factionId = $factionsModel->insert(array('name' => $factionName));
-                }
-                else
-                {
-                    $factionId = $factionId['id'];
-                }
+                    $factionId      = $factionsModel->getByName($factionName);
 
-                if(!is_null($factionId) && (is_null($currentStation->getFaction()) || $currentStation->getFaction()->getId() != $factionId))
-                {
-                    $newInformation['refFaction'] = $factionId;
+                    if(is_null($factionId))
+                    {
+                        $factionId = $factionsModel->insert(array('name' => $factionName));
+                    }
+                    else
+                    {
+                        $factionId = $factionId['id'];
+                    }
+
+                    if(!is_null($factionId) && (is_null($currentStation->getFaction()) || $currentStation->getFaction()->getId() != $factionId))
+                    {
+                        $newInformation['refFaction'] = $factionId;
+                    }
                 }
             }
 
