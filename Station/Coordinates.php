@@ -196,7 +196,7 @@ class Coordinates
                     if(strpos($e->getMessage(), '1062 Duplicate') !== false) // Can happen when the same station is submitted twice during the process
                     {
                         return self::handle($systemId, $message, $softwareName, $softwareVersion);
-                	}
+                    }
                     else
                     {
                         return null;
