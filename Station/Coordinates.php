@@ -37,19 +37,17 @@ class Coordinates
                 $update  = array();
 
                 // Save megaship systems history if moved
-                if($station['refSystem'] != $currentSystem->getId() && in_array($station['type'], array(12, 21)))
+                if($station['refSystem'] != $currentSystem->getId() && in_array($station['type'], array(12, 21, 31)))
                 {
                     // Add old system to history
-                    if(empty($systemsHistory))
-                    {
-                        $systemsHistory         = array();
-                    }
-                    else
+                    $systemsHistory         = array();
+                    if(!empty($station['systemsHistory']))
                     {
                         $systemsHistory         = \Zend_Json::decode($station['systemsHistory']);
                     }
 
-                    $systemsHistory[time()] = $station['refSystem'];
+                    $systemsHistory[time()]     = $station['refSystem'];
+                    $systemsHistory             = array_slice($systemsHistory, -100);
 
                     $update['refSystem']        = $currentSystem->getId();
                     $update['systemsHistory']   = \Zend_Json::encode($systemsHistory);
