@@ -31,7 +31,7 @@ class Coordinates
             $stationsModel  = new \Models_Stations;
             $station        = $stationsModel->getByMarketId($message['MarketID']);
 
-            if(!is_null($station))
+            if(!is_null($station) && strtotime($station['updateTime']) < strtotime($message['timestamp']))
             {
                 $station = $stationsModel->getById($station['id']);
                 $update  = array();
