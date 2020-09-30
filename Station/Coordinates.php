@@ -31,39 +31,43 @@ class Coordinates
             $stationsModel  = new \Models_Stations;
             $station        = $stationsModel->getByMarketId($message['MarketID']);
 
-            if(!is_null($station) && strtotime($station['updateTime']) < strtotime($message['timestamp']))
+            if(!is_null($station))
             {
                 $station = $stationsModel->getById($station['id']);
-                $update  = array();
 
-                // Save megaship systems history if moved
-                if($station['refSystem'] != $currentSystem->getId() && in_array($station['type'], array(12, 21, 31)))
+                if(strtotime($station['updateTime']) < strtotime($message['timestamp']))
                 {
-                    // Add old system to history
-                    $systemsHistory         = array();
-                    if(!empty($station['systemsHistory']))
+                    $update  = array();
+
+                    // Save megaship systems history if moved
+                    if($station['refSystem'] != $currentSystem->getId() && in_array($station['type'], array(12, 21, 31)))
                     {
-                        $systemsHistory         = \Zend_Json::decode($station['systemsHistory']);
+                        // Add old system to history
+                        $systemsHistory         = array();
+                        if(!empty($station['systemsHistory']))
+                        {
+                            $systemsHistory         = \Zend_Json::decode($station['systemsHistory']);
+                        }
+
+                        $systemsHistory[time()]     = $station['refSystem'];
+                        $systemsHistory             = array_slice($systemsHistory, -100);
+
+                        $update['refSystem']        = $currentSystem->getId();
+                        $update['systemsHistory']   = \Zend_Json::encode($systemsHistory);
+                        $update['refBody']          = new \Zend_Db_Expr('NULL');
                     }
 
-                    $systemsHistory[time()]     = $station['refSystem'];
-                    $systemsHistory             = array_slice($systemsHistory, -100);
+                    // Rescue ship changed name?
+                    if(array_key_exists('StationName', $message) && $message['StationName'] != $station['name'])
+                    {
+                        $update['name'] = $message['StationName'];
+                    }
 
-                    $update['refSystem']        = $currentSystem->getId();
-                    $update['systemsHistory']   = \Zend_Json::encode($systemsHistory);
-                    $update['refBody']          = new \Zend_Db_Expr('NULL');
-                }
-
-                // Rescue ship changed name?
-                if(array_key_exists('StationName', $message) && $message['StationName'] != $station['name'])
-                {
-                    $update['name'] = $message['StationName'];
-                }
-
-                if(count($update) > 0)
-                {
-                    // Update system/name
-                    $stationsModel->updateById($station['id'], $update);
+                    if(count($update) > 0)
+                    {
+                        // Update system/name
+                        $stationsModel->updateById($station['id'], $update);
+                    }
                 }
 
                 return $station['id'];

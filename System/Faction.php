@@ -352,12 +352,9 @@ class Faction
                                 }
                                 catch(\Zend_Db_Exception $e)
                                 {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
+                                    if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                     {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
+                                        \Sentry\captureException($e);
                                     }
                                 }
                             }

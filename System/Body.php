@@ -214,12 +214,9 @@ class Body
                             }
                             else
                             {
-                                $registry = \Zend_Registry::getInstance();
-
-                                if($registry->offsetExists('sentryClient'))
+                                if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                 {
-                                    $sentryClient = $registry->offsetGet('sentryClient');
-                                    $sentryClient->captureException($e);
+                                    \Sentry\captureException($e);
                                 }
                             }
                         }
@@ -262,12 +259,9 @@ class Body
                     {
                         $message['Parents'] = null;
 
-                        $registry = \Zend_Registry::getInstance();
-
-                        if($registry->offsetExists('sentryClient'))
+                        if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                         {
-                            $sentryClient = $registry->offsetGet('sentryClient');
-                            $sentryClient->captureException($e);
+                            \Sentry\captureException($e);
                         }
                     }
 
@@ -591,12 +585,9 @@ class Body
                                 }
                                 else
                                 {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
+                                    if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                     {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
+                                        \Sentry\captureException($e);
                                     }
                                 }
                             }
@@ -695,12 +686,9 @@ class Body
                                 }
                                 else
                                 {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
+                                    if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                     {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
+                                        \Sentry\captureException($e);
                                     }
                                 }
                             }
@@ -815,12 +803,9 @@ class Body
                                 }
                                 else
                                 {
-                                    $registry = \Zend_Registry::getInstance();
-
-                                    if($registry->offsetExists('sentryClient'))
+                                    if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                     {
-                                        $sentryClient = $registry->offsetGet('sentryClient');
-                                        $sentryClient->captureException($e);
+                                        \Sentry\captureException($e);
                                     }
                                 }
                             }
@@ -1031,12 +1016,9 @@ class Body
                             }
                             else
                             {
-                                $registry = \Zend_Registry::getInstance();
-
-                                if($registry->offsetExists('sentryClient'))
+                                if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                 {
-                                    $sentryClient = $registry->offsetGet('sentryClient');
-                                    $sentryClient->captureException($e);
+                                    \Sentry\captureException($e);
                                 }
                             }
                         }
@@ -1058,12 +1040,9 @@ class Body
                             }
                             else
                             {
-                                $registry = \Zend_Registry::getInstance();
-
-                                if($registry->offsetExists('sentryClient'))
+                                if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                 {
-                                    $sentryClient = $registry->offsetGet('sentryClient');
-                                    $sentryClient->captureException($e);
+                                    \Sentry\captureException($e);
                                 }
                             }
                         }
@@ -1085,12 +1064,9 @@ class Body
                             }
                             else
                             {
-                                $registry = \Zend_Registry::getInstance();
-
-                                if($registry->offsetExists('sentryClient'))
+                                if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
                                 {
-                                    $sentryClient = $registry->offsetGet('sentryClient');
-                                    $sentryClient->captureException($e);
+                                    \Sentry\captureException($e);
                                 }
                             }
                         }
