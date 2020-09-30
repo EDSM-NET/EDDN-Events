@@ -79,15 +79,16 @@ if($messages !== false)
             $message['timestamp'] = $message['timestamp'][0];
 
             // Add software/message to Sentry tags
-            $registry = \Zend_Registry::getInstance();
-            if($registry->offsetExists('sentryClient'))
+            if(defined('APPLICATION_SENTRY') && APPLICATION_SENTRY === true)
             {
-                $sentryClient = $registry->offsetGet('sentryClient');
-                $sentryClient->tags_context(array(
-                    'softwareName'      => $header['softwareName'],
-                    'softwareVersion'   => $header['softwareVersion'],
-                ));
-                $sentryClient->extra_context(array('header' => $header, 'message' => $message));
+                \Sentry\State\Hub::getCurrent()->configureScope(function (\Sentry\State\Scope $scope) use ($header): void {
+                    $scope->setTag('softwareName', $header['softwareName']);
+                    $scope->setTag('softwareVersion', $header['softwareVersion']);
+                });
+                \Sentry\State\Hub::getCurrent()->configureScope(function (\Sentry\State\Scope $scope) use ($header, $message): void {
+                    $scope->setExtra('header', $header);
+                    $scope->setExtra('message', $message);
+                });
             }
 
             if(strpos($schemaRef, '/journal/1') !== false)
