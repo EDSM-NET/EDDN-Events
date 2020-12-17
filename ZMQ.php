@@ -75,7 +75,7 @@ while (true)
 
                 // Execute message batch handle
                 EDSM_Api_Logger::log('<span class="text-success">Execute batch (' . count($messages['messages']) . '): ' . $cacheKey . '</span>');
-                exec('/usr/bin/php7.3 -f ' . LIBRARY_PATH . '/EDDN/EDDN.php -- "' . $cacheKey . '" > /dev/null 2>&1 &');
+                exec('/usr/bin/php7.4 -f ' . LIBRARY_PATH . '/EDDN/EDDN.php -- "' . $cacheKey . '" > /dev/null 2>&1 &');
 
                 // Purge messages and reset timer
                 $messages           = $messagesDefault;
