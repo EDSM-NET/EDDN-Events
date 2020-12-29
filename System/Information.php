@@ -71,7 +71,7 @@ class Information
             if(array_key_exists('SystemAllegiance', $message) && !empty(trim($message['SystemAllegiance'])))
             {
                 // Population
-                if(array_key_exists('Population', $message) && $message['Population'] != $currentInformation['population'])
+                if(array_key_exists('Population', $message) && (is_null($currentInformation) || $message['Population'] != $currentInformation['population']))
                 {
                     $newInformation['population'] = $message['Population'];
                 }

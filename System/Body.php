@@ -231,6 +231,7 @@ class Body
 
             if(!is_null($currentBody))
             {
+                $updateElasticStatus        = false;
                 $currentBodyNewData         = array();
                 $currentBodyNewParentsData  = array();
                 $currentBodyNewSurfaceData  = array();
@@ -561,7 +562,7 @@ class Body
                                 $systemsBodiesAtmosphereCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
                                     'percent'       => $qty,
                                 ));
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                         }
                         // Insert new composition
@@ -574,7 +575,7 @@ class Body
                                     'refComposition'    => $type,
                                     'percent'           => $qty,
                                 ));
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                             catch(\Zend_Db_Exception $e)
                             {
@@ -600,7 +601,7 @@ class Body
                         foreach($oldComposition AS $values)
                         {
                             $systemsBodiesAtmosphereCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -614,7 +615,7 @@ class Body
                     if(is_null($oldComposition) || count($oldComposition) == 0)
                     {
                         $systemsBodiesAtmosphereCompositionModel->deleteByRefBody($currentBody);
-                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        $updateElasticStatus = true; // Force Elastic refresh in the background process
                     }
                 }
 
@@ -662,7 +663,7 @@ class Body
                                 $systemsBodiesSolidCompositionModel->updateByRefBodyAndRefComposition($currentBody, $oldComponent['refComposition'], array(
                                     'percent'       => $qty,
                                 ));
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                         }
                         // Insert new composition
@@ -675,7 +676,7 @@ class Body
                                     'refComposition'    => $type,
                                     'percent'           => $qty,
                                 ));
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                             catch(\Zend_Db_Exception $e)
                             {
@@ -701,7 +702,7 @@ class Body
                         foreach($oldComposition AS $values)
                         {
                             $systemsBodiesSolidCompositionModel->deleteByRefBodyAndRefComposition($currentBody, $values['refComposition']);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -715,7 +716,7 @@ class Body
                     if(is_null($oldComposition) || count($oldComposition) == 0)
                     {
                         $systemsBodiesSolidCompositionModel->deleteByRefBody($currentBody);
-                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        $updateElasticStatus = true; // Force Elastic refresh in the background process
                     }
                 }
 
@@ -779,7 +780,7 @@ class Body
                                 $systemsBodiesMaterialsModel->updateByRefBodyAndRefMaterial($currentBody, $oldMaterial['refMaterial'], array(
                                     'percent'       => $qty,
                                 ));
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                         }
                         // Insert new material
@@ -792,7 +793,7 @@ class Body
                                     'refMaterial'   => $type,
                                     'percent'       => $qty,
                                 ));
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                             catch(\Zend_Db_Exception $e)
                             {
@@ -818,7 +819,7 @@ class Body
                         foreach($oldMaterials AS $values)
                         {
                             $systemsBodiesMaterialsModel->deleteByRefBodyAndRefMaterial($currentBody, $values['refMaterial']);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -832,7 +833,7 @@ class Body
                     if(is_null($oldMaterials) || count($oldMaterials) == 0)
                     {
                         $systemsBodiesMaterialsModel->deleteByRefBody($currentBody);
-                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        $updateElasticStatus = true; // Force Elastic refresh in the background process
                     }
                 }
 
@@ -907,14 +908,14 @@ class Body
                             )
                             {
                                 $systemsBodiesBeltsModel->updateById($oldBelt['id'], $belt);
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                         }
                         // Insert new belt
                         else
                         {
                             $systemsBodiesBeltsModel->insert($belt);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -944,14 +945,14 @@ class Body
                             )
                             {
                                 $systemsBodiesRingsModel->updateById($oldRing['id'], $ring);
-                                $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                                $updateElasticStatus = true; // Force Elastic refresh in the background process
                             }
                         }
                         // Insert new belt
                         else
                         {
                             $systemsBodiesRingsModel->insert($ring);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -961,7 +962,7 @@ class Body
                         foreach($oldBelts AS $values)
                         {
                             $systemsBodiesBeltsModel->deleteById($values['id']);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -971,7 +972,7 @@ class Body
                         foreach($oldRings AS $values)
                         {
                             $systemsBodiesRingsModel->deleteById($values['id']);
-                            $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                            $updateElasticStatus = true; // Force Elastic refresh in the background process
                         }
                     }
 
@@ -987,13 +988,13 @@ class Body
                     if(is_null($oldBelts) || count($oldBelts) == 0)
                     {
                         $systemsBodiesBeltsModel->deleteByRefBody($currentBody);
-                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        $updateElasticStatus = true; // Force Elastic refresh in the background process
                     }
 
                     if(is_null($oldRings) || count($oldRings) == 0)
                     {
                         $systemsBodiesRingsModel->deleteByRefBody($currentBody);
-                        $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                        $updateElasticStatus = true; // Force Elastic refresh in the background process
                     }
                 }
 
@@ -1073,10 +1074,20 @@ class Body
                     }
 
                     $currentBodyNewData['dateUpdated']  = $message['timestamp'];
-                    $currentBodyNewData['inElastic']    = 0; // Force Elastic refresh in the background process
+                    $updateElasticStatus = true; // Force Elastic refresh in the background process
 
                     // Always update to keep track of last update
                     $systemsBodiesModel->updateById($currentBody, $currentBodyNewData);
+
+                    if($updateElasticStatus === true)
+                    {
+                        $systemsBodiesInElasticModel = new \Models_Systems_Bodies_InElastic;
+                        $systemsBodiesInElasticModel->deleteByRefBody(
+                            $currentBody,
+                            ( (array_key_exists('group', $currentBodyNewData)) ? null: $currentBodyData['group'] ),
+                            ( (array_key_exists('group', $currentBodyNewData)) ? true: false )
+                        );
+                    }
 
                     if($useLogger === true && $wasInserted === false)
                     {
