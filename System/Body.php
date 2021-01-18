@@ -68,6 +68,19 @@ class Body
                         {
                             $currentBody = $currentSystemBody['id'];
 
+                            // If main body group is not correct continue the loop
+                            if(array_key_exists('StarType', $message) || array_key_exists('PlanetClass', $message))
+                            {
+                                if(array_key_exists('StarType', $message) && $currentSystemBody['group'] !== 1)
+                                {
+                                    continue;
+                                }
+                                if(array_key_exists('PlanetClass', $message) && $currentSystemBody['group'] !== 2)
+                                {
+                                    continue;
+                                }
+                            }
+
                             if(array_key_exists('dateUpdated', $currentSystemBody))
                             {
                                 // Discard older message...
