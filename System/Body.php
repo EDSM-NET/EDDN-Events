@@ -25,6 +25,7 @@ class Body
         $wasInserted    = false;
         $currentSystem  = \Component\System::getInstance($systemId);
 
+        $message['BodyName'] = str_replace('LHS 2335', 'Faisel C', $message['BodyName']);
         if($message['BodyName'] == 'Athaip QP-E d12-9178 6')
         {
             $message['BodyName'] = 'Jasmine\'s Playground';
@@ -66,8 +67,6 @@ class Body
                         // Complete name format or just body part
                         if(trim(strtolower($currentSystemBody['name'])) == strtolower($bodyName) || trim(strtolower($currentSystemBody['name'])) == strtolower($message['BodyName']))
                         {
-                            $currentBody = $currentSystemBody['id'];
-
                             // If main body group is not correct continue the loop
                             if(array_key_exists('StarType', $message) || array_key_exists('PlanetClass', $message))
                             {
@@ -80,6 +79,8 @@ class Body
                                     continue;
                                 }
                             }
+
+                            $currentBody = $currentSystemBody['id'];
 
                             if(array_key_exists('dateUpdated', $currentSystemBody))
                             {
@@ -1114,7 +1115,7 @@ class Body
 
                         if($return === true)
                         {
-                            //\EDSM_Api_Logger::log('<span class="text-info">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated in Elastic index.');
+                            //\EDSM_Api_Logger::log('<span class="text-success">EDDN\System\Body:</span>               ' . $message['BodyName'] . ' (#' . $currentBody . ') updated in Elastic index.');
                         }
                         else
                         {
