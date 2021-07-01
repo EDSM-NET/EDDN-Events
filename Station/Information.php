@@ -58,6 +58,23 @@ class Information
                 }
             }
 
+            // Landing pads
+            if(array_key_exists('LandingPads', $message))
+            {
+                if(array_key_exists('Small', $message['LandingPads']) && $message['LandingPads']['Small'] != $currentStation->getLandingPadsSmall())
+                {
+                    $newInformation['landingPadsSmall'] = (int) $message['LandingPads']['Small'];
+                }
+                if(array_key_exists('Medium', $message['LandingPads']) && $message['LandingPads']['Medium'] != $currentStation->getLandingPadsMedium())
+                {
+                    $newInformation['landingPadsMedium'] = (int) $message['LandingPads']['Medium'];
+                }
+                if(array_key_exists('Large', $message['LandingPads']) && $message['LandingPads']['Large'] != $currentStation->getLandingPadsLarge())
+                {
+                    $newInformation['landingPadsLarge'] = (int) $message['LandingPads']['Large'];
+                }
+            }
+
             // State
             if(array_key_exists('StationState', $message))
             {
