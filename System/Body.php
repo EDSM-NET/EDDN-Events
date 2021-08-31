@@ -26,6 +26,8 @@ class Body
         $currentSystem  = \Component\System::getInstance($systemId);
 
         $message['BodyName'] = str_replace('LHS 2335', 'Faisel C', $message['BodyName']);
+        $message['BodyName'] = str_replace('Eskimo Sector', 'NGC 2392 Sector', $message['BodyName']);
+        
         if($message['BodyName'] == 'Athaip QP-E d12-9178 6')
         {
             $message['BodyName'] = 'Jasmine\'s Playground';
