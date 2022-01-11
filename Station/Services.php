@@ -76,19 +76,17 @@ class Services
                                 $stationsModel->updateById($currentStation->getId(), ['marketUpdateTime' => new \Zend_Db_Expr('NULL')]);
 
                                 // Tweet new oldest station if it's the oldest!
-                                $cacheKey               = sha1('\Process\Elite\Market::$oldestStationId');
-                                $bootstrap              = \Zend_Registry::get('Zend_Application');
-                                $cacheManager           = $bootstrap->getResource('cachemanager');
-                                $cacheFile              = $cacheManager->getCache('databaseFile');
-
-                                $isOldestStation        = $cacheFile->load($cacheKey);
-
-                                if($isOldestStation !== false && $isOldestStation == $currentStation->getId())
+                                $oldestStations = $stationsModel->getOldest();
+                                foreach($oldestStations AS $oldestStation)
                                 {
-                                    // Just update the ID in cache
-                                    \Process\Elite\Market::$sendTweet           = false;
-                                    \Process\Elite\Market::$sendCompleteStats   = false;
-                                    \Process\Elite\Market::run();
+                                    if($oldestStation['id'] == $currentStation->getId())
+                                    {
+                                        // Just update the ID in cache
+                                        \Process\Elite\Market::$sendTweet           = false;
+                                        \Process\Elite\Market::$sendCompleteStats   = false;
+                                        \Process\Elite\Market::run();
+                                        break;
+                                    }
                                 }
 
                                 unset($stationsCommoditiesModel);
