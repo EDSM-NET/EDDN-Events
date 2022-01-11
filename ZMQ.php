@@ -16,7 +16,7 @@ $relayEDDN              = 'tcp://eddn.edcd.io:9500';
 // Grab database cache
 $bootstrap      = Zend_Registry::get('Zend_Application');
 $cacheManager   = $bootstrap->getResource('cachemanager');
-$cache          = $cacheManager->getCache('database');
+$cache          = $cacheManager->getCache('eddn');
 
 // Add logger
 EDSM_Api_Logger::setCache('lastEDDNAction', $cache);

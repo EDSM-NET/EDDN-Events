@@ -17,7 +17,7 @@ EDSM_Api_Logger::setCache('lastEDDNAction');
 
 $bootstrap      = Zend_Registry::get('Zend_Application');
 $cacheManager   = $bootstrap->getResource('cachemanager');
-$cache          = $cacheManager->getCache('database');
+$cache          = $cacheManager->getCache('eddn');
 
 $validSchemas   = array(
     'https://eddn.edcd.io/schemas/commodity/3',
