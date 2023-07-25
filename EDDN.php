@@ -25,12 +25,14 @@ $validSchemas   = array(
     'https://eddn.edcd.io/schemas/outfitting/2',
     'https://eddn.edcd.io/schemas/blackmarket/1',
     'https://eddn.edcd.io/schemas/journal/1',
+    'https://eddn.edcd.io/schemas/navroute/1',
 
     'https://eddn.edcd.io/schemas/commodity/3/live',
     'https://eddn.edcd.io/schemas/shipyard/2/live',
     'https://eddn.edcd.io/schemas/outfitting/2/live',
     'https://eddn.edcd.io/schemas/blackmarket/1/live',
     'https://eddn.edcd.io/schemas/journal/1/live',
+    'https://eddn.edcd.io/schemas/navroute/1/live',
 );
 
 /**
@@ -142,6 +144,21 @@ if($messages !== false)
                 }
 
                 EDSM_Api_Logger::log('Unknown journal event (' . $schemaRef . ' [' . $message['event'] . ']).');
+            }
+
+            // Navroute
+            if(strpos($schemaRef, '/navroute/1') !== false)
+            {
+                if(array_key_exists('Route', $message))
+                {
+                    foreach($message['Route'] as $node)
+                    {
+                        $systemId = \EDDN\System\Coordinates::handle($node, $header['softwareName'], $header['softwareVersion'], false, true);
+                        // TODO: Make use of StarClass
+                    }
+                }
+                
+                continue;
             }
 
             // Stations commodities
